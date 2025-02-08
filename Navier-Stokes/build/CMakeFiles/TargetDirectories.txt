@@ -1,0 +1,3 @@
+/home/davide-villani/Desktop/PDE/PROJECT/NavierStokes_Project_NM4PDE/Navier-Stokes/build/CMakeFiles/navier_stokes2D.dir
+/home/davide-villani/Desktop/PDE/PROJECT/NavierStokes_Project_NM4PDE/Navier-Stokes/build/CMakeFiles/edit_cache.dir
+/home/davide-villani/Desktop/PDE/PROJECT/NavierStokes_Project_NM4PDE/Navier-Stokes/build/CMakeFiles/rebuild_cache.dir
