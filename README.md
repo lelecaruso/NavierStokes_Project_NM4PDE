@@ -2,13 +2,12 @@
 This project aims to solve the unsteady, incompressible Navier-Stokes equations using the finite element method. The focus is on simulating the benchmark problem "flow past a cylinder" in two or three dimensions.
 
 ## Strong formulation
-$$ \begin{cases}
-  -\mu \nabla \vec{u} + (\rho \vec{u} \cdot \nabla) \vec{u} + \nabla p = \vec{f} & \text{in }\Omega \\
-  \nabla \cdot \vec{u} = 0 & \text{in }\Omega \\
-  \mu \nabla \vec{u} \cdot \widehat{\vec{n}} - p \cdot \widehat{\vec{n}} = -p_\text{out} \cdot \widehat{\vec{n}} & \text{on } \Gamma_0 \\
-  \vec{u} = \vec{u}_\text{in} & \text{on } \Gamma_1 \\
-  \vec{u} \cdot \widehat{\vec{n}} = \vec{0} & \text{on } \Gamma_2 \cup \Gamma_3 \cup \Gamma_4 \cup \Gamma_5 \\
-  (\mu \nabla \vec{u} \cdot \widehat{\vec{n}} - p  \cdot \widehat{\vec{n}}) \cdot \widehat{\vec{t}}_i = \vec{0} & \text{on } \Gamma_i,\ i=2,3,4,5
+$$ \begin{cases} 
+\frac{\partial \mathbf{u}}{\partial t} + (\mathbf{u} \cdot \nabla) \mathbf{u} - \nu \Delta \mathbf{u} + \nabla p = \mathbf{f} & \text{in } \Omega \, , \\ 
+\nabla \cdot \mathbf{u} = 0 & \text{in } \Omega \, , \\ 
+\mathbf{u} = \mathbf{g} & \text{on } \Gamma_{\mathrm{D}} \subset \partial \Omega \, , \\ 
+\nu \nabla \mathbf{u} \, \mathbf{n} - p \mathbf{n} = \mathbf{h} & \text{on } \Gamma_{\mathrm{N}} = \partial \Omega \backslash \Gamma_{\mathrm{D}} \, , \\ 
+\mathbf{u}(t=0) = \mathbf{u}_0 & \text{in } \Omega \, . 
 \end{cases} $$
 
 ### COMPILE AND RUN
