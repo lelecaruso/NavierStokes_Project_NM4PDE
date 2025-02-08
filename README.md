@@ -1,5 +1,5 @@
 # UNSTEADY-INCOMPRESSIBLE-NAVIER-STOKES in 2D and 3D
-This project aims to solve the unsteady, incompressible Navier-Stokes equations using the finite element method. The focus is on simulating the benchmark problem "flow past a cylinder" in two or three dimensions.
+This project aims to solve the unsteady, incompressible Navier-Stokes equations using the finite element method. The focus is on simulating the benchmark problem "**Flow past a Cylinder**" in two and three dimensions.
 
 ## Strong formulation
 $$ \begin{cases} 
