@@ -524,7 +524,7 @@ protected:
   void
   assemble(const double &time);
 
-  void 
+  void
   assemble_time_step(const double &time);
 
   // Solve the problem for one time step.
@@ -619,29 +619,14 @@ protected:
   // DoFs relevant to current process in the velocity and pressure blocks.
   std::vector<IndexSet> block_relevant_dofs;
 
-
-  // Pressure mass matrix, needed for preconditioning. We use a block matrix for
-  // convenience, but in practice we only look at the pressure-pressure block.
-  TrilinosWrappers::BlockSparseMatrix pressure_mass;
+  std::vector<Tensor<1, dim>> previous_velocity_values;
 
   // System matrix.
   TrilinosWrappers::BlockSparseMatrix system_matrix;
 
-  //M
-  TrilinosWrappers::SparseMatrix mass_matrix;
-
-  //A
-  TrilinosWrappers::SparseMatrix stiffness_matrix;
-
-  //C(u_n)
-  TrilinosWrappers::SparseMatrix convection_matrix;
-
-  //B
-  TrilinosWrappers::SparseMatrix pressure_matrix;
-
-  //B.T
-  //B
-  TrilinosWrappers::SparseMatrix pressure_transpose_matrix;
+  // Pressure mass matrix, needed for preconditioning. We use a block matrix for
+  // convenience, but in practice we only look at the pressure-pressure block.
+  TrilinosWrappers::BlockSparseMatrix pressure_mass;
 
   // Right-hand side vector in the linear system.
   TrilinosWrappers::MPI::BlockVector system_rhs;
@@ -651,6 +636,7 @@ protected:
 
   // System solution (including ghost elements).
   TrilinosWrappers::MPI::BlockVector solution;
+
 };
 
 #endif
