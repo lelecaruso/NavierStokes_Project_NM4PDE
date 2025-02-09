@@ -144,11 +144,6 @@ void NavierStokes::setup()
 
     pcout << "  Initializing the matrices" << std::endl;
     system_matrix.reinit(sparsity);
-    //M,A,C matrixes that we will use later
-    mass_matrix.reinit(sparsity);
-    stiffness_matrix.reinit(sparsity);
-    convection_matrix.reinit(sparsity);
-
     pressure_mass.reinit(sparsity_pressure_mass);
 
     pcout << "  Initializing the system right-hand side" << std::endl;
