@@ -191,7 +191,9 @@ void NavierStokes::assemble(const double &time)
 
   // Store the current velocity value in a tensor
   std::vector<Tensor<1, dim>> current_velocity_values(n_q);
-  // std::vector<Tensor<2,dim>> current_velocity_gradients(n_q);
+  //Store the current velocity gradient value in a tensor
+  std::vector<Tensor<2,dim>> current_velocity_gradients(n_q);
+  
 
   for (const auto &cell : dof_handler.active_cell_iterators())
   {
@@ -206,6 +208,8 @@ void NavierStokes::assemble(const double &time)
 
     // Retrieve the current solution values.
     fe_values[velocity].get_function_values(solution, current_velocity_values);
+    //Retrieve the current solution gradient values
+    fe_values[velocity].get_function_gradients(solution, current_velocity_gradients);
 
     for (unsigned int q = 0; q < n_q; ++q)
     {
@@ -232,11 +236,20 @@ void NavierStokes::assemble(const double &time)
                                fe_values[velocity].value(j, q) /
                                deltat * fe_values.JxW(q);
 
-          // Convective term.
+          // Convective term using u_n grad u_n+1 
+          /*
           cell_matrix(i, j) += current_velocity_values[q] *
                                fe_values[velocity].gradient(j, q) *
                                fe_values[velocity].value(i, q) *
                                fe_values.JxW(q);
+          */                     
+
+          // Convective term using u_n+1 grad u_n 
+           // C                    
+           cell_matrix(i, j) += current_velocity_gradients[q] *
+                               fe_values[velocity].value(j, q) *
+                               fe_values[velocity].value(i, q) *
+                               fe_values.JxW(q);                     
 
           // Pressure term in the momentum equation.
           cell_matrix(i, j) -= fe_values[velocity].divergence(i, q) *
@@ -338,9 +351,13 @@ void NavierStokes::assemble(const double &time)
         boundary_values, system_matrix, solution, system_rhs, false);
   }
 
+/*
   NavierStokes::previous_velocity_values.resize(n_q);
   std::copy(current_velocity_values.begin(), current_velocity_values.end(), NavierStokes::previous_velocity_values.begin());
-
+*/
+  // Occorre salvare la soluzione precendente per fare ad ogni time step - precedente + C nuova
+  NavierStokes::previous_gradient_velocity_values.resize(n_q);
+  std::copy(current_velocity_gradients.begin(), current_velocity_gradients.end(), NavierStokes::previous_gradient_velocity_values.begin());
 }
 
 void NavierStokes::assemble_time_step(const double &time)
@@ -376,7 +393,8 @@ void NavierStokes::assemble_time_step(const double &time)
 
   // Store the current velocity value in a tensor
   std::vector<Tensor<1, dim>> current_velocity_values(n_q);
-  // std::vector<Tensor<2,dim>> current_velocity_gradients(n_q);
+   // Store the current velocity gradient value in a tensor
+  std::vector<Tensor<2,dim>> current_velocity_gradients(n_q);
 
   for (const auto &cell : dof_handler.active_cell_iterators())
   {
@@ -391,6 +409,9 @@ void NavierStokes::assemble_time_step(const double &time)
 
     // Retrieve the current solution values.
     fe_values[velocity].get_function_values(solution, current_velocity_values);
+    // Retrieve the current solution gradient values
+    fe_values[velocity].get_function_gradients(solution, current_velocity_gradients);
+
 
     for (unsigned int q = 0; q < n_q; ++q)
     {
@@ -406,7 +427,8 @@ void NavierStokes::assemble_time_step(const double &time)
         for (unsigned int j = 0; j < dofs_per_cell; ++j)
         {
 
-          // Subtract the previous Convective term.
+          // Subtract the previous Convective term. Using u_n grad u_n+1
+          /*
           cell_matrix(i, j) -= previous_velocity_values[q] *
                                fe_values[velocity].gradient(j, q) *
                                fe_values[velocity].value(i, q) *
@@ -417,6 +439,21 @@ void NavierStokes::assemble_time_step(const double &time)
                                fe_values[velocity].gradient(j, q) *
                                fe_values[velocity].value(i, q) *
                                fe_values.JxW(q);
+          */
+         //Subtractin the previous conv term using the form u_n+1 grad u_n
+
+          //Sub previous C term 
+          cell_matrix(i, j) -= previous_velocity_values[q] *
+                               fe_values[velocity].gradient(j, q) *
+                               fe_values[velocity].value(i, q) *
+                               fe_values.JxW(q);
+          
+           // Add the new C term                   
+           cell_matrix(i, j) += current_velocity_gradients[q] *
+                               fe_values[velocity].value(j, q) *
+                               fe_values[velocity].value(i, q) *
+                               fe_values.JxW(q);  
+
         }
 
         // Forcing term.
@@ -503,8 +540,8 @@ void NavierStokes::assemble_time_step(const double &time)
         boundary_values, system_matrix, solution, system_rhs, false);
   }
   // pcout<<system_matrix<<std::endl;
-  std::copy(current_velocity_values.begin(), current_velocity_values.end(), previous_velocity_values.begin());
-
+  //std::copy(current_velocity_values.begin(), current_velocity_values.end(), previous_velocity_values.begin());
+  std::copy(current_velocity_gradients.begin(), current_velocity_gradients.end(), NavierStokes::previous_gradient_velocity_values.begin());
 }
 
 

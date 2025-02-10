@@ -621,6 +621,8 @@ protected:
 
   std::vector<Tensor<1, dim>> previous_velocity_values;
 
+   std::vector<Tensor<2, dim>> previous_gradient_velocity_values;
+
   // System matrix.
   TrilinosWrappers::BlockSparseMatrix system_matrix;
 
