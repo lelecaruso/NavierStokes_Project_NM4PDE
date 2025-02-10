@@ -363,7 +363,7 @@ void NavierStokes::assemble(const double &time)
 void NavierStokes::assemble_time_step(const double &time)
 {
   pcout << "===============================================" << std::endl;
-  pcout << "Assembling the system" << std::endl;
+  pcout << "Assembling the system at next time step" << std::endl;
 
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q = quadrature->size();
@@ -443,8 +443,8 @@ void NavierStokes::assemble_time_step(const double &time)
          //Subtractin the previous conv term using the form u_n+1 grad u_n
 
           //Sub previous C term 
-          cell_matrix(i, j) -= previous_velocity_values[q] *
-                               fe_values[velocity].gradient(j, q) *
+          cell_matrix(i, j) -= previous_gradient_velocity_values[q] *
+                               fe_values[velocity].value(j, q) *
                                fe_values[velocity].value(i, q) *
                                fe_values.JxW(q);
           
