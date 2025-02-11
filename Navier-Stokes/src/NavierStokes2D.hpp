@@ -159,18 +159,18 @@ public:
     }
 
     virtual void
-    vector_value(const Point<dim> &/*p*/, Vector<double> &values) const override
+    vector_value(const Point<dim> & p, Vector<double> &values) const override
     {
-      values[0] = u_m;
+      values[0] = 4 * u_m * p[1] * ( H - p[1] ) * std::sin(M_PI * get_time() / 8) / (H*H) ;
       for (unsigned int i = 1; i < dim + 1; ++i)
         values[i] = 0.0;
     }
 
     virtual double
-    value(const Point<dim> &/*p*/, const unsigned int component = 0) const override
+    value(const Point<dim> &p, const unsigned int component = 0) const override
     {
       if (component == 0)
-        return u_m;
+        return 4 * u_m * p[1] * ( H - p[1] ) * std::sin(M_PI * get_time() / 8) / (H*H) ;
       else
         return 0;
     }
@@ -183,7 +183,7 @@ public:
 
   protected:
     double H = 0.41;
-    double u_m = 15; // 0.3;
+    double u_m = 1.5; // 0.3;
   };
 
   // Since we're working with block matrices, we need to make our own
