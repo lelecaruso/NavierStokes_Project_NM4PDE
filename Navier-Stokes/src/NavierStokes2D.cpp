@@ -661,7 +661,10 @@ void NavierStokes::solve()
   double time = 0;
 
   while (time < T)
-  {
+  { 
+    forcing_term.set_time(time); //setto il valore della funzione f al tempo corrente
+    function_h.set_time(time); // setto il valore della funzione f al tempo corrente
+
     if( time == 0 ) assemble(time);
     else assemble_time_step(time);
     time += deltat;
