@@ -335,7 +335,7 @@ void NavierStokes::assemble(const double &time)
                                             boundary_values,
                                             ComponentMask({true, true, false}));
 
-    // Apply no-slip condition to walls and the entire cylinder (IDs 2, 4, 6, 7)
+    // Apply no-slip condition to walls and the entire cylinder (IDs 2, 4, 6, 5)
     boundary_functions.clear();
     
     boundary_functions[2] = &function_g;  // Top wall (boundary ID 2)
