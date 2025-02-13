@@ -161,7 +161,8 @@ public:
     virtual void
     vector_value(const Point<dim> & p, Vector<double> &values) const override
     {
-      values[0] = 4 * u_m * p[1] * ( H - p[1] ) * std::sin(M_PI * get_time() / 8) / (H*H) ;
+      //values[0] = 4.0 * u_m * p[1] * ( H - p[1] ) * std::sin(M_PI * get_time() / 8) / (H*H) ; //test3
+      values[0] = 4.0 * u_m * p[1] * ( H - p[1] )  / (H*H) ; //test 2
       for (unsigned int i = 1; i < dim + 1; ++i)
         values[i] = 0.0;
     }
@@ -170,7 +171,8 @@ public:
     value(const Point<dim> &p, const unsigned int component = 0) const override
     {
       if (component == 0)
-        return 4 * u_m * p[1] * ( H - p[1] ) * std::sin(M_PI * get_time() / 8) / (H*H) ;
+        return  4.0 * u_m * p[1] * ( H - p[1] )  / (H*H) ; //test 2
+        // return 4.0 * u_m * p[1] * ( H - p[1] ) * std::sin(M_PI * get_time() / 8.0) / (H*H) ; //test 3
       else
         return 0;
     }
@@ -178,12 +180,13 @@ public:
     double getMeanVelocity() const
     {
 
-      return 2 * u_m / 3;
+      return //2.0 * u_m *std::sin(get_time()*M_PI/8.0)  / 3.0; //test3
+            2.0 * u_m   / 3.0; //test 2
     }
 
   protected:
     double H = 0.41;
-    double u_m = 1.5; // 0.3;
+    double u_m = 1.5; //test2 && 3 // 0.3; // test 1
   };
 
   // Since we're working with block matrices, we need to make our own

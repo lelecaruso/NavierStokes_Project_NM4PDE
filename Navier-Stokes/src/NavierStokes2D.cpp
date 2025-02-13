@@ -464,6 +464,7 @@ void NavierStokes::assemble_time_step(const double &time)
         }
 
         // Forcing term.
+        // It makes sense to calculate the rhs linked to f if f is time-dependent
         cell_rhs(i) += scalar_product(forcing_term_tensor,
                                       fe_values[velocity].value(i, q)) *
                        fe_values.JxW(q);
@@ -667,7 +668,7 @@ void NavierStokes::solve()
 
   unsigned int time_step = 0;
   double time = 0;
-  while (time < T)
+  while (time < T - 0.5 * deltat)
   { 
     forcing_term.set_time(time); //setto il valore della funzione f al tempo corrente
     function_h.set_time(time); // setto il valore della funzione h al tempo corrente
@@ -771,12 +772,20 @@ void NavierStokes::compute_forces()
   double mean_v = inlet_velocity.getMeanVelocity();
   vec_drag.push_back(drag);
   vec_lift.push_back(lift);
+  //vec_drag_coeff.push_back((2. * drag) / (mean_v * mean_v * rho * 0.1)); //NO pigreco
+  //vec_lift_coeff.push_back((2. * lift) / (mean_v * mean_v * rho * 0.1)); //NO pigreco
   vec_drag_coeff.push_back((2. * drag) / (mean_v * mean_v * rho * M_PI * 0.1));
   vec_lift_coeff.push_back((2. * lift) / (mean_v * mean_v * rho * M_PI * 0.1));
 
+  //Calcolare la differenza di pressione nel punto (xa, ya) = (0.15, 0.2) and (xe, ye) = (0.25, 0.2) al tempo t = 8 secondi (fine della simulazione del test 3)
+  //calcolare massimo valore di entrambi i coefficienti
+
   pcout
-      << "Coeff:\t " << (2. * drag) / (mean_v * mean_v * rho * M_PI * 0.1)
-      << " Coeff:\t " << (2. * lift) / (mean_v * mean_v * rho * M_PI * 0.1) << std::endl;
+      << "Coeff D:\t " << (2. * drag) / (mean_v * mean_v * rho * M_PI * 0.1)
+      << " Coeff L:\t " << (2. * lift) / (mean_v * mean_v * rho * M_PI * 0.1) << std::endl;
+      //<< "Coeff D:\t " << (2. * drag) / (mean_v * mean_v * rho * 0.1) //No pigreco
+      //<< " Coeff L:\t " << (2. * lift) / (mean_v * mean_v * rho * 0.1) << std::endl; //No pigreco
+
 
   pcout << "===============================================" << std::endl;
 }

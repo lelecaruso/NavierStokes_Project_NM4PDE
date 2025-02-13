@@ -7,20 +7,33 @@ int main(int argc, char *argv[])
 
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/cilinder_2D_fine.msh";
+  //const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/cilinder_2D_fine.msh";
+  const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/cilinder_2D_coarse.msh";
   //const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/mesh-square-5.msh"; // per facilita di risoluzione del sistema
+
+  //TAYLOR-HOOD 
   const unsigned int degree_velocity = 2;
   const unsigned int degree_pressure = 1;
 
   //const double T = 24;
-  const double T = 1; //comodita di soluzione del sistema
+
+  const double Re = 100.0;
+  const double A = 0.2175;
+  const double B = -5.106;
+
+  const double freq = (A + (B/Re));
+
+  const double T_test2 = 1.0/freq;
+
+  //const double T = 8.0;  //test 3
   const double deltat = 0.05;
 
   dealii::Timer timer;
   // Start the timer
   timer.restart();
 
-  NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T, deltat);
+  //NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T, deltat); //test3
+  NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T_test2, deltat);
 
   problem.setup();
   problem.solve();
