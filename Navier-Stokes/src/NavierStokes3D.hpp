@@ -172,7 +172,7 @@ public:
     value(const Point<dim> &p, const unsigned int component = 0) const override
     {
       if (component == 0)
-        return  16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] ) / (H*H*H*H) ; //test 2
+        return  16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] ) * std::sin(M_PI * get_time()/8.0) / (H*H*H*H) ; //test 2
       else
         return 0;
     }
@@ -180,7 +180,7 @@ public:
     double getMeanVelocity() const
     {
 
-      return (4.0 * u_m)  / 9.0; //test 2 , la funzione 4 * U(0,H/2,H/2,t) / 9 =  (4/9) * u_m
+      return (4.0 * u_m * std::sin(M_PI * get_time()/8.0))  / (9.0); //test 3 , la funzione 4 * U(0,H/2,H/2,t) / 9 =  (4/9) * u_m * sin(Pit/8)
     }
 
   protected:
