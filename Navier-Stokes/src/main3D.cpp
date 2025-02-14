@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
 
   const double T_test2 = 1.0/freq;
 */
-  const double T = 2.0;  //test 3
+  const double T = 1.60;  //test 3
   const double deltat = 0.05;
 
   dealii::Timer timer;

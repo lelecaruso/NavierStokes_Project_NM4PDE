@@ -163,7 +163,7 @@ public:
     vector_value(const Point<dim> & p, Vector<double> &values) const override
     {
   
-      values[0] = 16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] ) / (H*H*H*H) ; //test 2
+      values[0] = 16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] ) * std::sin(M_PI * get_time()/8.0) / (H*H*H*H) ; //test 2
       for (unsigned int i = 1; i < dim + 1; ++i)
         values[i] = 0.0;
     }
