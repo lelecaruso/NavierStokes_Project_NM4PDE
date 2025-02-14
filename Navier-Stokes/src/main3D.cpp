@@ -1,4 +1,4 @@
-#include "NavierStokes2D.hpp"
+#include "NavierStokes3D.hpp"
 
 // Main function.
 int main(int argc, char *argv[])
@@ -7,9 +7,8 @@ int main(int argc, char *argv[])
 
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  //const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/cilinder_2D_fine.msh";
-  const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/cilinder_2D_coarse.msh";
-  //const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/mesh-square-5.msh"; // per facilita di risoluzione del sistema
+  
+  const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/cilinder_3D_coarse.msh";
 
   //TAYLOR-HOOD 
   const unsigned int degree_velocity = 2;
@@ -17,6 +16,7 @@ int main(int argc, char *argv[])
 
   //const double T = 24;
 
+/*
   const double Re = 100.0;
   const double A = 0.2175;
   const double B = -5.106;
@@ -24,16 +24,15 @@ int main(int argc, char *argv[])
   const double freq = (A + (B/Re));
 
   const double T_test2 = 1.0/freq;
-
-  //const double T = 8.0;  //test 3
+*/
+  const double T = 1.0;  //test 2
   const double deltat = 0.05;
 
   dealii::Timer timer;
   // Start the timer
   timer.restart();
 
-  //NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T, deltat); //test3
-  NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T_test2, deltat);
+  NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T, deltat); //test3
 
   problem.setup();
   problem.solve();
@@ -44,9 +43,6 @@ int main(int argc, char *argv[])
   // Output the elapsed time
   if(rank == 0)
     std::cout << "Time taken to solve ENTIRE Navier Stokes problem: " << timer.wall_time() << " seconds" << std::endl;
-
-  //Calcolare la differenza di pressione nel punto (xa, ya) = (0.15, 0.2) and (xe, ye) = (0.25, 0.2) al tempo t = 8 secondi (fine della simulazione del test 3)
-  //calcolare massimo valore di entrambi i coefficienti
 
   if (rank == 0)
   {

@@ -44,8 +44,8 @@ using namespace dealii;
 class NavierStokes
 {
 public:
-  // Physical dimension (2D)
-  static constexpr unsigned int dim = 2;
+  // Physical dimension (3D)
+  static constexpr unsigned int dim = 3;
 
   // Function for the forcing term.
   class ForcingTerm : public Function<dim>
@@ -150,7 +150,8 @@ public:
   // applying boundary conditions at the end of assembly). If we only return
   // three components, however, we may get an error message due to this function
   // being incompatible with the finite element space.
- class InletVelocity : public Function<dim>
+
+   class InletVelocity : public Function<dim>
   {
   public:
     InletVelocity()
@@ -161,8 +162,8 @@ public:
     virtual void
     vector_value(const Point<dim> & p, Vector<double> &values) const override
     {
-      //values[0] = 4.0 * u_m * p[1] * ( H - p[1] ) * std::sin(M_PI * get_time() / 8) / (H*H) ; //test3
-      values[0] = 4.0 * u_m * p[1] * ( H - p[1] )  / (H*H) ; //test 2
+  
+      values[0] = 16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] ) / (H*H*H*H) ; //test 2
       for (unsigned int i = 1; i < dim + 1; ++i)
         values[i] = 0.0;
     }
@@ -171,8 +172,7 @@ public:
     value(const Point<dim> &p, const unsigned int component = 0) const override
     {
       if (component == 0)
-        return  4.0 * u_m * p[1] * ( H - p[1] )  / (H*H) ; //test 2
-        // return 4.0 * u_m * p[1] * ( H - p[1] ) * std::sin(M_PI * get_time() / 8.0) / (H*H) ; //test 3
+        return  16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] ) / (H*H*H*H) ; //test 2
       else
         return 0;
     }
@@ -180,13 +180,12 @@ public:
     double getMeanVelocity() const
     {
 
-      return //2.0 * u_m *std::sin(get_time()*M_PI/8.0)  / 3.0; //test3
-            2.0 * u_m   / 3.0; //test 2
+      return (4.0 * u_m)  / 9.0; //test 2 , la funzione 4 * U(0,H/2,H/2,t) / 9 =  (4/9) * u_m
     }
 
   protected:
     double H = 0.41;
-    double u_m = 1.5; //test2 && 3 // 0.3; // test 1
+    double u_m = 2.25; //test2 && 3
   };
 
   // Since we're working with block matrices, we need to make our own
@@ -527,8 +526,6 @@ protected:
   void
   assemble(const double &time);
 
-  void
-  assemble_time_step(const double &time);
 
   // Solve the problem for one time step.
   void
