@@ -509,9 +509,16 @@ public:
   void
   setup();
 
-  // Solve system.
+  // Setup Newton system.
+  void
+  setupNewton();
+
+  // Solve system UNSTEADY.
   void
   solve();
+
+  //Solve sys STEADY
+  void solveNewton();
 
   std::vector<double> vec_drag;
   std::vector<double> vec_lift;
@@ -529,6 +536,17 @@ protected:
 
   void
   assemble_time_step(const double &time);
+
+  void solveLinearSystem(); // risolve il sistema lineare
+
+// solve Newton Method
+  void solveNewtonMethod(); // risolve il problema del metodo di newthon
+                          // chiamando piu volte solveLinearSystem
+
+
+ void assemble_Newton();
+
+ void output_Newton();
 
   // Solve the problem for one time step.
   void
@@ -641,6 +659,15 @@ protected:
 
   // System solution (including ghost elements).
   TrilinosWrappers::MPI::BlockVector solution;
+
+  // Jacobian matrix.
+TrilinosWrappers::BlockSparseMatrix jacobian_matrix;
+
+// Residual vector.
+TrilinosWrappers::MPI::BlockVector residual_vector;
+
+// Increment of the solution between Newton iterations.
+TrilinosWrappers::MPI::BlockVector delta_owned;
 
 };
 

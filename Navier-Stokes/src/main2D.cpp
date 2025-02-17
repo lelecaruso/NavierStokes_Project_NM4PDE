@@ -17,26 +17,46 @@ int main(int argc, char *argv[])
 
   //const double T = 24;
 
+  /*
+  test 2
   const double Re = 100.0;
   const double A = 0.2175;
   const double B = -5.106;
 
   const double freq = (A + (B/Re));
 
-  const double T_test2 = 1.0/freq;
+  */
 
-  //const double T = 8.0;  //test 3
+  //const double T_test2 = 1.0/freq;
+
+  const double T = 0.0;  //test 3
   const double deltat = 0.05;
 
   dealii::Timer timer;
   // Start the timer
   timer.restart();
 
-  //NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T, deltat); //test3
-  NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T_test2, deltat);
+   NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T, deltat); //test3
+  //NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T_test2, deltat);
 
-  problem.setup();
-  problem.solve();
+
+  if(T>0)
+  {
+    problem.setup();
+    //UNSTEADY CASE
+    problem.solve();
+
+  }
+
+  else
+  {
+    //STEADY CASE
+  
+  //NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T_test2, deltat);
+  problem.setupNewton();
+  problem.solveNewton();
+    
+  }
 
   // Stop the timer
   timer.stop();
