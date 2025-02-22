@@ -589,19 +589,19 @@ void NavierStokes::solve_time_step()
 
   //PreconditionBlockIdentity preconditioner;
   //PreconditionSIMPLE preconditioner;
-  //PreconditionaSIMPLE preconditioner;
-  PreconditionYosida preconditioner;
+  PreconditionaSIMPLE preconditioner;
+  //PreconditionaYosida preconditioner;
 
   pcout << " Assemblying the preconditioner... " << std::endl;
 
   dealii::Timer timerprec;
   timerprec.restart();
-  
-  preconditioner.initialize(
+     preconditioner.initialize(
+      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), solution_owned);
+
+  /*preconditioner.initialize(
       system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), mass_matrix.block(0,0) , deltat ,solution_owned);
 
- /*  preconditioner.initialize(
-      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), solution_owned);
 
    
 

@@ -553,9 +553,7 @@ public:
       dst.block(1) = yp;
       B_T->vmult(dst.block(0), dst.block(1));
       // velocity dst = zu - F^-1*B_T*yp
-      tmp2.reinit(src.block(0));
-      tmp2 = dst.block(0);
-      solver_gmres.solve(*F, dst.block(0) ,tmp2  , preconditioner_F);
+      dst.block(0).scale(diag_D_inv);
       dst.block(0) -= yu;
       dst.block(0) *= -1.;
 
@@ -573,8 +571,8 @@ public:
     TrilinosWrappers::PreconditionILU preconditioner_S;
   };
 
-  // TODO Precondition approximate Yosida
-  class PreconditionYosida
+  // Precondition approximate Yosida
+  class PreconditionaYosida
  {
   public:
     void
@@ -592,15 +590,32 @@ public:
 
       diag_D_inv.reinit(sol_owned.block(0));
       diag_D.reinit(sol_owned.block(0));
+      lump_M.reinit(sol_owned.block(0));
+
 
       for (unsigned int i : diag_D.locally_owned_elements())
       {
-        double temp = M->diag_element(i);
+        double temp = F->diag_element(i);
         diag_D[i] = -temp;
         diag_D_inv[i] = 1.0 / temp;
       }
 
-      B->mmult(S, *B_T, diag_D_inv);
+
+    /*for (unsigned int i : lump_M.locally_owned_elements())
+    {
+        double temp = 0.0;
+        for (auto it = M->begin(i); it != M->end(i); ++it)
+            temp += std::abs(it->value());
+        
+        lump_M[i] = dt / temp;
+    }*/
+          for (unsigned int i : diag_D.locally_owned_elements())
+      {
+        double temp = M->diag_element(i);
+        lump_M[i] = dt / temp;
+      }
+
+      B->mmult(S, *B_T, lump_M);
 
       preconditionerF.initialize(*F);
       preconditionerS.initialize(S);
@@ -628,7 +643,7 @@ public:
       SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
       solver_cg.solve(S, dst.block(1), tmp, preconditionerS);
       dst.block(0).scale(diag_D);
-      dst.block(1) *= 1.0 / alpha;
+      dst.block(1) *= 1.0 ;
       B_T->vmult_add(dst.block(0), dst.block(1));
       dst.block(0).scale(diag_D_inv);
     }
@@ -644,10 +659,10 @@ public:
     TrilinosWrappers::PreconditionILU preconditionerS;
 
     TrilinosWrappers::MPI::Vector diag_D;
+    TrilinosWrappers::MPI::Vector lump_M;
     TrilinosWrappers::MPI::Vector diag_D_inv;
     mutable TrilinosWrappers::MPI::Vector tmp;
     mutable TrilinosWrappers::MPI::Vector tmp2;
-    const double alpha = 0.5;
   };
 
 
