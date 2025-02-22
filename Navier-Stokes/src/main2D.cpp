@@ -17,13 +17,13 @@ int main(int argc, char *argv[])
 
   //const double T = 24;
 
-  const double Re = 100.0;
+  /*const double Re = 100.0;
   const double A = 0.2175;
   const double B = -5.106;
 
-  const double freq = (A + (B/Re));
+  const double freq = (A + (B/Re));*/
 
-  const double T_test2 = 1.0/freq;
+  const double T_test2 = 1.0;
 
   //const double T = 8.0;  //test 3
   const double deltat = 0.05;

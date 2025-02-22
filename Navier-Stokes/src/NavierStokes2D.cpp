@@ -146,6 +146,9 @@ void NavierStokes::setup()
 
     pcout << "  Initializing the matrices" << std::endl;
     system_matrix.reinit(sparsity);
+    mass_matrix.reinit(sparsity);
+    convection_matrix.reinit(sparsity);
+    stiffness_matrix.reinit(sparsity);
     pressure_mass.reinit(sparsity_pressure_mass);
 
     pcout << "  Initializing the system right-hand side" << std::endl;
@@ -156,7 +159,7 @@ void NavierStokes::setup()
   }
 }
 
-// https://www.dealii.org/current/doxygen/deal.II/code_gallery_time_dependent_navier_stokes.html
+// Function used to assemble the first time
 void NavierStokes::assemble(const double &time)
 {
   pcout << "===============================================" << std::endl;
@@ -177,12 +180,18 @@ void NavierStokes::assemble(const double &time)
                                            update_JxW_values);
 
   FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> cell_mass_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> cell_stiffness_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> cell_convection_matrix(dofs_per_cell, dofs_per_cell);
   FullMatrix<double> cell_pressure_mass_matrix(dofs_per_cell, dofs_per_cell);
   Vector<double> cell_rhs(dofs_per_cell);
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
   system_matrix = 0.0;
+  mass_matrix = 0.0;
+  stiffness_matrix = 0.0;
+  convection_matrix = 0.0;
   system_rhs = 0.0;
   pressure_mass = 0.0;
 
@@ -203,6 +212,9 @@ void NavierStokes::assemble(const double &time)
     fe_values.reinit(cell);
 
     cell_matrix = 0.0;
+    cell_mass_matrix = 0.0;
+    cell_stiffness_matrix = 0.0;
+    cell_convection_matrix = 0.0;
     cell_rhs = 0.0;
     cell_pressure_mass_matrix = 0.0;
 
@@ -225,25 +237,24 @@ void NavierStokes::assemble(const double &time)
         for (unsigned int j = 0; j < dofs_per_cell; ++j)
         {
           // Viscosity term.
-          cell_matrix(i, j) +=
+          cell_stiffness_matrix(i, j) +=
               nu *
               scalar_product(fe_values[velocity].gradient(i, q),
                              fe_values[velocity].gradient(j, q)) *
               fe_values.JxW(q);
 
           // Time derivative discretization.
-          cell_matrix(i, j) += fe_values[velocity].value(i, q) *
+          cell_mass_matrix(i, j) += fe_values[velocity].value(i, q) *
                                fe_values[velocity].value(j, q) /
                                deltat * fe_values.JxW(q);
 
           // Convective term using u_n grad u_n+1 
          
-          cell_matrix(i, j) += current_velocity_values[q] *
+          cell_convection_matrix(i, j) += current_velocity_values[q] *
                                fe_values[velocity].gradient(j, q) *
                                fe_values[velocity].value(i, q) *
-                               fe_values.JxW(q);
-                              
- /*
+                               fe_values.JxW(q);                             
+          /*
           // Convective term using u_n+1 grad u_n 
            // C                    
            cell_matrix(i, j) += current_velocity_gradients[q] *
@@ -284,7 +295,7 @@ void NavierStokes::assemble(const double &time)
     {
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
-        // 1 is the inlet velocity and 3 is the outlet
+        // NO NEUMANN
         if (cell->face(f)->at_boundary() &&
             (false))
         {
@@ -314,13 +325,23 @@ void NavierStokes::assemble(const double &time)
     cell->get_dof_indices(dof_indices);
 
     system_matrix.add(dof_indices, cell_matrix);
+    mass_matrix.add(dof_indices, cell_mass_matrix);
+    convection_matrix.add(dof_indices, cell_convection_matrix);
+    stiffness_matrix.add(dof_indices, cell_stiffness_matrix);
     system_rhs.add(dof_indices, cell_rhs);
     pressure_mass.add(dof_indices, cell_pressure_mass_matrix);
   }
 
   system_matrix.compress(VectorOperation::add);
+  mass_matrix.compress(VectorOperation::add);
+  convection_matrix.compress(VectorOperation::add);
+  stiffness_matrix.compress(VectorOperation::add);
   system_rhs.compress(VectorOperation::add);
   pressure_mass.compress(VectorOperation::add);
+
+  system_matrix.add(1., mass_matrix);
+  system_matrix.add(1., convection_matrix);
+  system_matrix.add(1., stiffness_matrix);
 
 // Dirichlet boundary conditions.
 {
@@ -367,10 +388,11 @@ void NavierStokes::assemble(const double &time)
   std::copy(current_velocity_gradients.begin(), current_velocity_gradients.end(), NavierStokes::previous_gradient_velocity_values.begin());
 }
 
+// Function used to assemble at time > deltat to avoid redundant computation of A,M,B
 void NavierStokes::assemble_time_step(const double &time)
 {
   pcout << "===============================================" << std::endl;
-  pcout << "Assembling the system at next time step" << std::endl;
+  pcout << "Assembling the system" << std::endl;
 
   const unsigned int dofs_per_cell = fe->dofs_per_cell;
   const unsigned int n_q = quadrature->size();
@@ -386,22 +408,24 @@ void NavierStokes::assemble_time_step(const double &time)
                                            update_normal_vectors |
                                            update_JxW_values);
 
-  FullMatrix<double> cell_matrix(dofs_per_cell, dofs_per_cell);
-  FullMatrix<double> cell_pressure_mass_matrix(dofs_per_cell, dofs_per_cell);
+
+  FullMatrix<double> cell_convection_matrix(dofs_per_cell, dofs_per_cell);
   Vector<double> cell_rhs(dofs_per_cell);
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
+  system_matrix.add(-1., convection_matrix);
+  convection_matrix = 0.0;
   system_rhs = 0.0;
-
 
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
 
   // Store the current velocity value in a tensor
   std::vector<Tensor<1, dim>> current_velocity_values(n_q);
-   // Store the current velocity gradient value in a tensor
+  //Store the current velocity gradient value in a tensor
   std::vector<Tensor<2,dim>> current_velocity_gradients(n_q);
+  
 
   for (const auto &cell : dof_handler.active_cell_iterators())
   {
@@ -410,15 +434,15 @@ void NavierStokes::assemble_time_step(const double &time)
 
     fe_values.reinit(cell);
 
-    cell_matrix = 0.0;
+
+    cell_convection_matrix = 0.0;
     cell_rhs = 0.0;
-    cell_pressure_mass_matrix = 0.0;
+
 
     // Retrieve the current solution values.
     fe_values[velocity].get_function_values(solution, current_velocity_values);
-    // Retrieve the current solution gradient values
+    //Retrieve the current solution gradient values
     fe_values[velocity].get_function_gradients(solution, current_velocity_gradients);
-
 
     for (unsigned int q = 0; q < n_q; ++q)
     {
@@ -434,37 +458,21 @@ void NavierStokes::assemble_time_step(const double &time)
         for (unsigned int j = 0; j < dofs_per_cell; ++j)
         {
 
-          // Subtract the previous Convective term. Using u_n grad u_n+1
+          // Convective term using u_n grad u_n+1 
+          cell_convection_matrix(i, j) += current_velocity_values[q] *
+                               fe_values[velocity].gradient(j, q) *
+                               fe_values[velocity].value(i, q) *
+                               fe_values.JxW(q);                             
           /*
-          cell_matrix(i, j) -= previous_velocity_values[q] *
-                               fe_values[velocity].gradient(j, q) *
-                               fe_values[velocity].value(i, q) *
-                               fe_values.JxW(q);
-
-          // Convective term.
-          cell_matrix(i, j) += current_velocity_values[q] *
-                               fe_values[velocity].gradient(j, q) *
-                               fe_values[velocity].value(i, q) *
-                               fe_values.JxW(q);
-          */
-         //Subtractin the previous conv term using the form u_n+1 grad u_n
-
-          //Sub previous C term 
-          cell_matrix(i, j) -= previous_gradient_velocity_values[q] *
-                               fe_values[velocity].value(j, q) *
-                               fe_values[velocity].value(i, q) *
-                               fe_values.JxW(q);
-          
-           // Add the new C term                   
+          // Convective term using u_n+1 grad u_n 
+           // C                    
            cell_matrix(i, j) += current_velocity_gradients[q] *
                                fe_values[velocity].value(j, q) *
                                fe_values[velocity].value(i, q) *
-                               fe_values.JxW(q);  
-
+                               fe_values.JxW(q);    */                  
         }
 
         // Forcing term.
-        // It makes sense to calculate the rhs linked to f if f is time-dependent
         cell_rhs(i) += scalar_product(forcing_term_tensor,
                                       fe_values[velocity].value(i, q)) *
                        fe_values.JxW(q);
@@ -481,9 +489,9 @@ void NavierStokes::assemble_time_step(const double &time)
     {
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
-        // 1 is the inlet velocity and 3 is the outlet
+        // NO NEUMANN
         if (cell->face(f)->at_boundary() &&
-            (cell->face(f)->boundary_id() != 1 && cell->face(f)->boundary_id() != 3))
+            (false))
         {
           fe_boundary_values.reinit(cell, f);
 
@@ -510,49 +518,62 @@ void NavierStokes::assemble_time_step(const double &time)
 
     cell->get_dof_indices(dof_indices);
 
-    system_matrix.add(dof_indices, cell_matrix);
+    
+    convection_matrix.add(dof_indices, cell_convection_matrix);
     system_rhs.add(dof_indices, cell_rhs);
-    pressure_mass.add(dof_indices, cell_pressure_mass_matrix);
   }
 
-  system_matrix.compress(VectorOperation::add);
+  
+  convection_matrix.compress(VectorOperation::add);
   system_rhs.compress(VectorOperation::add);
   pressure_mass.compress(VectorOperation::add);
+  system_matrix.add(1., convection_matrix);
 
-  // Dirichlet boundary conditions.
-  {
+
+// Dirichlet boundary conditions.
+{
     std::map<types::global_dof_index, double> boundary_values;
     std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
-    // We interpolate first the inlet velocity condition alone, then the wall
-    // condition alone, so that the latter "win" over the former where the two
-    // boundaries touch.
+    // Set inlet velocity at boundary ID `1`
     inlet_velocity.set_time(time);
-    boundary_functions[1] = &inlet_velocity;
+    boundary_functions[1] = &inlet_velocity; // Inlet boundary
     VectorTools::interpolate_boundary_values(dof_handler,
-                                             boundary_functions,
-                                             boundary_values,
-                                             ComponentMask(
-                                                 {true, true, false}));
+                                            boundary_functions,
+                                            boundary_values,
+                                            ComponentMask({true, true, false}));
 
+    // Apply no-slip condition to walls and the entire cylinder (IDs 2, 4, 6, 5)
     boundary_functions.clear();
-    boundary_functions[5] = &function_g;
-    boundary_functions[6] = &function_g;
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                             boundary_functions,
-                                             boundary_values,
-                                             ComponentMask(
-                                                 {true, true, false}));
+    
+    boundary_functions[2] = &function_g;  // Top wall (boundary ID 2)
+    
+    boundary_functions[4] = &function_g;  // Bottom wall (boundary ID 4)
 
+    boundary_functions[6] = &function_g;  // Cylinder (upper part, boundary ID 6)
+    boundary_functions[5] = &function_g;  // Cylinder (lower part, boundary ID 5)
+
+    VectorTools::interpolate_boundary_values(dof_handler,
+                                            boundary_functions,
+                                            boundary_values,
+                                            ComponentMask({true, true, false}));
+
+    // Apply boundary values to the system (matrix, rhs, solution)
     MatrixTools::apply_boundary_values(
         boundary_values, system_matrix, solution, system_rhs, false);
-  }
-  // pcout<<system_matrix<<std::endl;
-  //std::copy(current_velocity_values.begin(), current_velocity_values.end(), previous_velocity_values.begin());
-  std::copy(current_velocity_gradients.begin(), current_velocity_gradients.end(), NavierStokes::previous_gradient_velocity_values.begin());
+
+   
 }
 
 
+/*
+  NavierStokes::previous_velocity_values.resize(n_q);
+  std::copy(current_velocity_values.begin(), current_velocity_values.end(), NavierStokes::previous_velocity_values.begin());
+*/
+  // Occorre salvare la soluzione precendente per fare ad ogni time step - precedente + C nuova
+  NavierStokes::previous_gradient_velocity_values.resize(n_q);
+  std::copy(current_velocity_gradients.begin(), current_velocity_gradients.end(), NavierStokes::previous_gradient_velocity_values.begin());
+}
 
 void NavierStokes::solve_time_step()
 {
@@ -567,19 +588,23 @@ void NavierStokes::solve_time_step()
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
 
   //PreconditionBlockIdentity preconditioner;
-
-   PreconditionSIMPLE preconditioner;
-
+  //PreconditionSIMPLE preconditioner;
   //PreconditionaSIMPLE preconditioner;
+  PreconditionYosida preconditioner;
 
   pcout << " Assemblying the preconditioner... " << std::endl;
 
   dealii::Timer timerprec;
   timerprec.restart();
-
+  
   preconditioner.initialize(
+      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), mass_matrix.block(0,0) , deltat ,solution_owned);
+
+ /*  preconditioner.initialize(
       system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), solution_owned);
-/*
+
+   
+
   preconditioner.initialize(
       system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1));*/
 
@@ -680,10 +705,9 @@ void NavierStokes::solve()
           << time << ":" << std::flush;
 
 
-    /*if( time == deltat ) assemble(time);
-    else assemble_time_step(time);*/
+    if( time == deltat ) assemble(time);
+    else assemble_time_step(time);
 
-    assemble(time);
     solve_time_step();
     compute_forces();
     output(time_step);
