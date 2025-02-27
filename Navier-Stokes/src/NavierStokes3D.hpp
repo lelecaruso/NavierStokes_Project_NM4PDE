@@ -27,7 +27,8 @@
 #include <deal.II/lac/trilinos_parallel_block_vector.h>
 #include <deal.II/lac/trilinos_precondition.h>
 #include <deal.II/lac/trilinos_sparse_matrix.h>
-
+#include <deal.II/grid/grid_generator.h>
+#include <deal.II/grid/grid_refinement.h>
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/vector_tools.h>
@@ -128,7 +129,7 @@ public:
     }
 
     virtual double
-    value(const Point<dim> & /*p*/, const unsigned int component) const
+    value(const Point<dim> & /*p*/, const unsigned int component) const override
     {
       if (component == 0)
         return 0.;
@@ -185,7 +186,7 @@ public:
 
   protected:
     double H = 0.41;
-    double u_m = 2.25; //test2 && 3
+    double u_m = 0.4; //test2 && 3
   };
 
   // Since we're working with block matrices, we need to make our own
@@ -526,6 +527,8 @@ protected:
   void
   assemble(const double &time);
 
+  void
+  assemble_time_step(const double &time);
 
   // Solve the problem for one time step.
   void
@@ -625,6 +628,12 @@ protected:
 
   // System matrix.
   TrilinosWrappers::BlockSparseMatrix system_matrix;
+  // A
+  TrilinosWrappers::BlockSparseMatrix stiffness_matrix;
+  // M
+  TrilinosWrappers::BlockSparseMatrix mass_matrix;
+  // C(u_k)
+  TrilinosWrappers::BlockSparseMatrix convection_matrix;
 
   // Pressure mass matrix, needed for preconditioning. We use a block matrix for
   // convenience, but in practice we only look at the pressure-pressure block.
