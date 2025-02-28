@@ -15,19 +15,9 @@ int main(int argc, char *argv[])
   const unsigned int degree_pressure = 1;
   //std::vector<double> errors_L2;
 
-  //const double T = 24;
-
-/*
-  const double Re = 100.0;
-  const double A = 0.2175;
-  const double B = -5.106;
-
-  const double freq = (A + (B/Re));
-
-  const double T_test2 = 1.0/freq;
-*/
-  const double T = 8;  //test 3
-  const double deltat = 0.01;
+ 
+  const double T = 1; 
+  const double deltat = 0.1;
 
   dealii::Timer timer;
   // Start the timer
@@ -50,27 +40,6 @@ int main(int argc, char *argv[])
     std::cout << std::scientific << "L2-norm of the error at final time step = " << errors_L2;
 }
 
-  if (rank == 0)
-  {
-    const std::string output_filename = "forces_results_2D_2case.csv";
-    std::ofstream outputFile(output_filename);
-
-    if (!outputFile.is_open())
-    {
-      std::cerr << "Error opening output file" << std::endl;
-      return -1;
-    }
-    outputFile << "Iteration, Drag, Lift, Coeff Drag, CoeffLift, time prec, time solve" << std::endl;
-
-    for (size_t ite = 0; ite < problem.vec_drag.size(); ite++)
-    {
-      outputFile << ite * deltat << ", " << problem.vec_drag[ite] << ", " << problem.vec_lift_coeff[ite] << ", " 
-                << problem.vec_drag_coeff[ite] << ", " << problem.vec_lift_coeff[ite] << ", "
-                << problem.time_prec[ite] << ", " << problem.time_solve[ite]
-                << std::endl;
-    }
-    outputFile.close();
-  }
 
   return 0;
 }
