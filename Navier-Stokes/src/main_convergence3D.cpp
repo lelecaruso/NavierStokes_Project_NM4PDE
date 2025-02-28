@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
   //std::vector<double> errors_L2;
 
  
-  const double T = 0.005; 
+  const double T = 0.1; 
   const double deltat = 0.001;
 
   dealii::Timer timer;
