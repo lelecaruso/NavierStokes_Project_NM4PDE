@@ -4,25 +4,49 @@
 void NavierStokes::setup()
 {
   // Create the mesh.
-  {
+/*  {
     pcout << "Initializing the mesh" << std::endl;
-
+    
+    // For a tetrahedral mesh, we should use Triangulation<dim, dim> 
+    // with the Simplex flag
     Triangulation<dim> mesh_serial;
+    
+    
+    GridGenerator::subdivided_hyper_cube_with_simplices(mesh_serial, 
+                                                      1,  // number of subdivisions per direction
+                                                      -1.0, 1.0);
+    mesh_serial.refine_global(3);  
 
-    GridIn<dim> grid_in;
-    grid_in.attach_triangulation(mesh_serial);
-
-    std::ifstream grid_in_file(mesh_file_name);
-    grid_in.read_msh(grid_in_file);
-
+    // Partition for parallel computation
     GridTools::partition_triangulation(mpi_size, mesh_serial);
     const auto construction_data = TriangulationDescription::Utilities::
-        create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
+      create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
     mesh.create_triangulation(construction_data);
-
-    pcout << "  Number of elements = " << mesh.n_global_active_cells()
+    
+    pcout << " Number of elements = " << mesh.n_global_active_cells()
           << std::endl;
   }
+*/
+  // Initialize the mesh from file
+    {
+      pcout << "Initializing the mesh" << std::endl;
+  
+      Triangulation<dim> mesh_serial;
+  
+      GridIn<dim> grid_in;
+      grid_in.attach_triangulation(mesh_serial);
+  
+      std::ifstream grid_in_file(mesh_file_name);
+      grid_in.read_msh(grid_in_file);
+  
+      GridTools::partition_triangulation(mpi_size, mesh_serial);
+      const auto construction_data = TriangulationDescription::Utilities::
+          create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
+      mesh.create_triangulation(construction_data);
+  
+      pcout << "  Number of elements = " << mesh.n_global_active_cells()
+            << std::endl;
+    }
 
   pcout << "-----------------------------------------------" << std::endl;
 
@@ -295,9 +319,8 @@ void NavierStokes::assemble(const double &time)
     {
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
-        // NO NEUMANN
-        if (cell->face(f)->at_boundary() &&
-            (false))
+        // NEUMANN on y = -1 
+        if (cell->face(f)->at_boundary() && cell->face(f)->boundary_id()==3) 
         {
           fe_boundary_values.reinit(cell, f);
 
@@ -346,15 +369,24 @@ void NavierStokes::assemble(const double &time)
 // Dirichlet boundary conditions.
 {
   std::map<types::global_dof_index, double> boundary_values;
+
   std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
-
   // tutte le facce hanno dirich nulla a meno della faccia y=-1
-  Functions::ZeroFunction<dim> zero_function(dim + 1);
+  exact_solution.set_time(time);
 
-  for (unsigned int i = 0; i < 6; ++i)
-    if(i!=2) //dovrebbe essere la faccia y = -1
-      boundary_functions[i] = &zero_function;
+ /* for (unsigned int i = 0; i < 6 ; ++i){
+      
+    if( i != 2)
+      boundary_functions[i] = &exact_solution;
+}*/
+    
+  boundary_functions[0] = &exact_solution;
+  boundary_functions[1] = &exact_solution;
+  boundary_functions[2] = &exact_solution;
+  boundary_functions[4] = &exact_solution;
+  boundary_functions[5] = &exact_solution;
+
 
   VectorTools::interpolate_boundary_values(dof_handler,
                                            boundary_functions,
@@ -363,7 +395,7 @@ void NavierStokes::assemble(const double &time)
                                                {true, true, true, false}));
 
   MatrixTools::apply_boundary_values(
-      boundary_values, system_matrix, solution, system_rhs, true);
+      boundary_values, system_matrix, solution, system_rhs, false);
 
 }
 
@@ -470,9 +502,8 @@ void NavierStokes::assemble_time_step(const double &time)
     {
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
-        // NO NEUMANN
-        if (cell->face(f)->at_boundary() &&
-            (false))
+    // NEUMANN on y = -1 
+        if (cell->face(f)->at_boundary() && cell->face(f)->boundary_id()==3) 
         {
           fe_boundary_values.reinit(cell, f);
 
@@ -516,13 +547,17 @@ void NavierStokes::assemble_time_step(const double &time)
   std::map<types::global_dof_index, double> boundary_values;
   std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
+  
+  exact_solution.set_time(time);
+  
+    
+  boundary_functions[0] = &exact_solution;
+  boundary_functions[1] = &exact_solution;
+  boundary_functions[2] = &exact_solution;
+  boundary_functions[4] = &exact_solution;
+  boundary_functions[5] = &exact_solution;
 
-  // tutte le facce hanno dirich nulla a meno della faccia y=-1
-  Functions::ZeroFunction<dim> zero_function(dim + 1);
-
-  for (unsigned int i = 0; i < 6; ++i)
-    if(i!=2)//dovrebbe essere la faccia y = -1
-      boundary_functions[i] = &zero_function;
+  
 
   VectorTools::interpolate_boundary_values(dof_handler,
                                            boundary_functions,
@@ -531,7 +566,7 @@ void NavierStokes::assemble_time_step(const double &time)
                                                {true, true, true, false}));
 
   MatrixTools::apply_boundary_values(
-      boundary_values, system_matrix, solution, system_rhs, true);
+      boundary_values, system_matrix, solution, system_rhs, false);
 
 }
 
@@ -625,7 +660,7 @@ void NavierStokes::output(const unsigned int &time_step) const
 
   data_out.build_patches();
 
-  const std::string output_file_name = "output-stokes-3D";
+  const std::string output_file_name = "convergence-3D";
   data_out.write_vtu_with_pvtu_record("./",
                                       output_file_name,
                                       time_step,
@@ -671,126 +706,20 @@ void NavierStokes::solve()
     else assemble_time_step(time);
 
     solve_time_step();
-    compute_forces();
+    //compute_forces();
     output(time_step);
   }
 }
 
-void NavierStokes::compute_forces()
-{
-  pcout << "===============================================" << std::endl;
-  pcout << "Computing forces: " << std::endl;
-
-
-  FEValues<dim> fe_values(*fe,
-                          *quadrature,
-                          update_values | update_gradients |
-                              update_quadrature_points | update_JxW_values);
-  FEFaceValues<dim> fe_face_values(*fe,
-                                   *quadrature_boundary,
-                                   update_values | update_normal_vectors |
-                                       update_JxW_values);
-
-  const unsigned int n_q = quadrature->size();
-  const unsigned int n_q_face = quadrature_boundary->size();                                     
-
-  FEValuesExtractors::Vector velocity(0);
-  FEValuesExtractors::Scalar pressure(dim);
-
-  std::vector<Tensor<1, dim>> current_velocity_values(n_q);
-  std::vector<double> current_pressure_values(n_q);
-  std::vector<Tensor<2, dim>> current_velocity_gradients(n_q);
-
-	double drag=0.;
-	double lift=0.;
-
-  double local_lift = 0.0;
-  double local_drag = 0.0;
-
-  for (const auto &cell : dof_handler.active_cell_iterators())
-  {
-    if (!cell->is_locally_owned())
-      continue;
-
-    fe_values.reinit(cell);
-
-    fe_values[velocity].get_function_values(solution, current_velocity_values);
-    fe_values[pressure].get_function_values(solution, current_pressure_values);
-    fe_values[velocity].get_function_gradients(solution, current_velocity_gradients);
-
-    if (cell->at_boundary())
-    {
-      for (unsigned int f = 0; f < cell->n_faces(); ++f)
-      {
-        if (cell->face(f)->at_boundary() && //Integro sul cilindro 
-            (cell->face(f)->boundary_id() == 6 ||
-             cell->face(f)->boundary_id() == 7 ||
-             cell->face(f)->boundary_id() == 8 ||
-             cell->face(f)->boundary_id() == 9))
-        {
-          fe_face_values.reinit(cell, f);
-
-          for (unsigned int q = 0; q < n_q_face; ++q)
-          {
-            // Get the values
-            const double nx = fe_face_values.normal_vector(q)[0];
-            const double ny = fe_face_values.normal_vector(q)[1];
-
-            // Construct the tensor
-            Tensor<1, dim> tangent;
-            tangent[0] = ny;
-            tangent[1] =-nx;
-						tangent[2] = 0.;
-
-            local_drag += (rho * nu * fe_face_values.normal_vector(q) * current_velocity_gradients[q] * // This is the tangential component
-						//current_velocity_values[q] * 
-						//tangent / tangent.norm_square() * tangent 
-						( tangent / tangent.norm_square() )
-						* ny 
-						-
-						current_pressure_values[q] * nx
-						)*fe_face_values.JxW(q);
-
-            local_lift -= (rho * nu * fe_face_values.normal_vector(q) * current_velocity_gradients[q] * // This is the tangential components
-						//current_velocity_values[q] * 
-						//tangent / tangent.norm_square() * tangent 
-						( tangent / tangent.norm_square() )
-						* nx 
-						
-						+
-            current_pressure_values[q] * ny
-						)*fe_face_values.JxW(q);
-          }
-        }
-      }
-    }
-  }
-  drag = Utilities::MPI::sum(local_drag, MPI_COMM_WORLD);
-  lift = Utilities::MPI::sum(local_lift, MPI_COMM_WORLD);
-  pcout << "Drag :\t " << drag << " Lift :\t " << lift << std::endl;
-  // The meam velocity is defined as 4U(0,H/2,H/2,t)/9
-  // This is in the case 3D-2 unsteady
-  const double mean_v = inlet_velocity.getMeanVelocity();
-	const double D= 0.1;
-	const double H=0.41;
-
-	const double c_d=(2.*drag)/(rho*mean_v*mean_v*D*H);
-	const double c_l=(2.*lift)/(rho*mean_v*mean_v*D*H);
-
-	pcout << "Coeff:\t " << c_d << " Coeff:\t " << c_l << std::endl;
-
-  pcout << "===============================================" << std::endl;
-}
-
 double
-Heat::compute_error(const VectorTools::NormType &norm_type)
+NavierStokes::compute_error(const VectorTools::NormType &norm_type)
 {
   FE_SimplexP<dim> fe_linear(1);
   MappingFE        mapping(fe_linear);
 
-  const QGaussSimplex<dim> quadrature_error = QGaussSimplex<dim>(r + 2);
+  const QGaussSimplex<dim> quadrature_error = QGaussSimplex<dim>(fe->degree + 2);
 
-  exact_solution.set_time(time);
+  exact_solution.set_time(static_cast<double>(T));//calculate error at the last step
 
   Vector<double> error_per_cell;
   VectorTools::integrate_difference(mapping,
