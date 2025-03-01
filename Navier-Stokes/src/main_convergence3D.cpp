@@ -8,7 +8,7 @@ int main(int argc, char *argv[])
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   
-  const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/mesh-cube-10.msh";
+  const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/mesh-cube-5.msh";
 
   //TAYLOR-HOOD 
   const unsigned int degree_velocity = 2;
@@ -16,8 +16,13 @@ int main(int argc, char *argv[])
   //std::vector<double> errors_L2;
 
  
+<<<<<<< HEAD
   const double T = 1; 
   const double deltat = 0.1;
+=======
+  const double T = 0.1; 
+  const double deltat = 0.001;
+>>>>>>> 9da681d37909a019a4f3a0743cbc9f1cc5465b3b
 
   dealii::Timer timer;
   // Start the timer

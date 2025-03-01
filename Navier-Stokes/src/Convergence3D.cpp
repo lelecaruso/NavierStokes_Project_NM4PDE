@@ -4,25 +4,49 @@
 void NavierStokes::setup()
 {
   // Create the mesh.
-  {
+/*  {
     pcout << "Initializing the mesh" << std::endl;
-
+    
+    // For a tetrahedral mesh, we should use Triangulation<dim, dim> 
+    // with the Simplex flag
     Triangulation<dim> mesh_serial;
+    
+    
+    GridGenerator::subdivided_hyper_cube_with_simplices(mesh_serial, 
+                                                      1,  // number of subdivisions per direction
+                                                      -1.0, 1.0);
+    mesh_serial.refine_global(3);  
 
-    GridIn<dim> grid_in;
-    grid_in.attach_triangulation(mesh_serial);
-
-    std::ifstream grid_in_file(mesh_file_name);
-    grid_in.read_msh(grid_in_file);
-
+    // Partition for parallel computation
     GridTools::partition_triangulation(mpi_size, mesh_serial);
     const auto construction_data = TriangulationDescription::Utilities::
-        create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
+      create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
     mesh.create_triangulation(construction_data);
-
-    pcout << "  Number of elements = " << mesh.n_global_active_cells()
+    
+    pcout << " Number of elements = " << mesh.n_global_active_cells()
           << std::endl;
   }
+*/
+  // Initialize the mesh from file
+    {
+      pcout << "Initializing the mesh" << std::endl;
+  
+      Triangulation<dim> mesh_serial;
+  
+      GridIn<dim> grid_in;
+      grid_in.attach_triangulation(mesh_serial);
+  
+      std::ifstream grid_in_file(mesh_file_name);
+      grid_in.read_msh(grid_in_file);
+  
+      GridTools::partition_triangulation(mpi_size, mesh_serial);
+      const auto construction_data = TriangulationDescription::Utilities::
+          create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
+      mesh.create_triangulation(construction_data);
+  
+      pcout << "  Number of elements = " << mesh.n_global_active_cells()
+            << std::endl;
+    }
 
   pcout << "-----------------------------------------------" << std::endl;
 
@@ -296,7 +320,11 @@ void NavierStokes::assemble(const double &time)
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
         // NEUMANN on y = -1 
+<<<<<<< HEAD
         if (cell->face(f)->at_boundary() && cell->face(f)->boundary_id()==2) 
+=======
+        if (cell->face(f)->at_boundary() && cell->face(f)->boundary_id()==3) 
+>>>>>>> 9da681d37909a019a4f3a0743cbc9f1cc5465b3b
         {
           fe_boundary_values.reinit(cell, f);
 
@@ -345,8 +373,8 @@ void NavierStokes::assemble(const double &time)
 // Dirichlet boundary conditions.
 {
   std::map<types::global_dof_index, double> boundary_values;
-  std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
+<<<<<<< HEAD
   // tutte le facce hanno dirich nulla a meno della faccia y=-1
   exact_solution.set_time(time);
 
@@ -356,6 +384,25 @@ void NavierStokes::assemble(const double &time)
       boundary_functions[i] = &exact_solution;
       }
   }
+=======
+  std::map<types::boundary_id, const Function<dim> *> boundary_functions;
+
+  // tutte le facce hanno dirich nulla a meno della faccia y=-1
+  exact_solution.set_time(time);
+
+ /* for (unsigned int i = 0; i < 6 ; ++i){
+      
+    if( i != 2)
+      boundary_functions[i] = &exact_solution;
+}*/
+    
+  boundary_functions[0] = &exact_solution;
+  boundary_functions[1] = &exact_solution;
+  boundary_functions[2] = &exact_solution;
+  boundary_functions[4] = &exact_solution;
+  boundary_functions[5] = &exact_solution;
+
+>>>>>>> 9da681d37909a019a4f3a0743cbc9f1cc5465b3b
 
   VectorTools::interpolate_boundary_values(dof_handler,
                                            boundary_functions,
@@ -364,7 +411,7 @@ void NavierStokes::assemble(const double &time)
                                                {true, true, true, false}));
 
   MatrixTools::apply_boundary_values(
-      boundary_values, system_matrix, solution, system_rhs, true);
+      boundary_values, system_matrix, solution, system_rhs, false);
 
 }
 
@@ -472,7 +519,11 @@ void NavierStokes::assemble_time_step(const double &time)
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
     // NEUMANN on y = -1 
+<<<<<<< HEAD
         if (cell->face(f)->at_boundary() && cell->face(f)->boundary_id()==2) 
+=======
+        if (cell->face(f)->at_boundary() && cell->face(f)->boundary_id()==3) 
+>>>>>>> 9da681d37909a019a4f3a0743cbc9f1cc5465b3b
         {
           fe_boundary_values.reinit(cell, f);
 
@@ -516,6 +567,7 @@ void NavierStokes::assemble_time_step(const double &time)
   std::map<types::global_dof_index, double> boundary_values;
   std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
+<<<<<<< HEAD
   // tutte le facce hanno dirich nulla a meno della faccia y=-1
   exact_solution.set_time(time);
   
@@ -524,6 +576,18 @@ void NavierStokes::assemble_time_step(const double &time)
       boundary_functions[i] = &exact_solution;
   }
       
+=======
+  
+  exact_solution.set_time(time);
+  
+    
+  boundary_functions[0] = &exact_solution;
+  boundary_functions[1] = &exact_solution;
+  boundary_functions[2] = &exact_solution;
+  boundary_functions[4] = &exact_solution;
+  boundary_functions[5] = &exact_solution;
+
+>>>>>>> 9da681d37909a019a4f3a0743cbc9f1cc5465b3b
   
 
   VectorTools::interpolate_boundary_values(dof_handler,
@@ -533,7 +597,7 @@ void NavierStokes::assemble_time_step(const double &time)
                                                {true, true, true, false}));
 
   MatrixTools::apply_boundary_values(
-      boundary_values, system_matrix, solution, system_rhs, true);
+      boundary_values, system_matrix, solution, system_rhs, false);
 
 }
 

@@ -140,21 +140,15 @@ public:
 
           if (component == 0)
           {
-              return -a * std::exp(-nu * b * b * get_time()) * 
-                    (std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) + 
-                      std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]));
+              return -a * std::exp( -nu * b * b * get_time() ) * ( std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) + std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) );
           }
           else if (component == 1)
           {
-              return -a * std::exp(-nu * b * b * get_time()) * 
-                    (std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) + 
-                      std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]));
+              return -a * std::exp( -nu * b * b * get_time() ) * ( std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) + std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) );
           }
           else if (component == 2)
           {
-              return -a * std::exp(-nu * b * b * get_time()) * 
-                    (std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) + 
-                      std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]));
+              return -a * std::exp( -nu * b * b * get_time() ) * ( std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) + std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]) );
           }
           else
           {
@@ -163,82 +157,65 @@ public:
         }
       
       private:
-      const double nu = 1e-3;
+      const double nu = 1e-2;
       const double a = M_PI / 4.0;
       const double b = M_PI / 2.0; 
 
     };
 
-    ExactSolution exact_solution;
+// Neumann boundary conditions.
+class FunctionH : public Function<dim>
+{
+public:
+  // Constructor.
+  FunctionH() : Function<dim>(dim)
+  {
+  }
 
-  // Neumann boundary conditions.
-    class FunctionH : public Function<dim>
-    {
-    public:
-      // Constructor.
-      FunctionH() : Function<dim>(dim)
-      {
-      }
-  
-      virtual void
-      vector_value(const Point<dim> & p, Vector<double> &values) const override
-      {
-        //vettore normale al piano y = - 1 è n = (0,-1,0)
-        //p[1] = -1; //y=-1
+  virtual void
+  vector_value(const Point<dim> & p, Vector<double> &values) const override
+  {
+    //vettore normale al piano y = - 1 è n = (0,1,0)
+    //p[1] = -1; //y=-1
 
-
-        //H=ν∂u/∂n​−pn =  -ν∂u/∂n + (0,p(x,-1,z),0)
+    //expression of H 
+    //H=ν∂u/∂n​−pn =  ν∂u/∂n - (0,p(x,-1,z),0)
       double factor = -(a * a * std::exp(-2 * nu * b * b * get_time())) / 2.0;
-   
-    /*
-      double term1 = 2 * std::sin(a * p[0] + b * p[1]) * std::cos(a * p[2] + b * p[0]) * std::exp(a * (p[1] + p[2]));
-      double term2 = 2 * std::sin(a * p[1] + b * p[2]) * std::cos(a * p[0] + b * p[1]) * std::exp(a * (p[0] + p[2]));
-      double term3 = 2 * std::sin(a * p[2] + b * p[0]) * std::cos(a * p[1] + b * p[2]) * std::exp(a * (p[0] + p[1]));
-      double term4 = std::exp(2 * a * p[0]) + std::exp(2 * a * p[1]) + std::exp(2 * a * p[2]);
+      double term1 = 2.0 * std::sin(a * p[0] + b * p[1]) * std::cos(a * p[2] + b * p[0]) * std::exp(a * (p[1] + p[2]));   
+      double term2 = 2.0 * std::sin(a * p[1] + b * p[2]) * std::cos(a * p[0] + b * p[1]) * std::exp(a * (p[0] + p[2]));
+      double term3 = 2.0 * std::sin(a * p[2] + b * p[0]) * std::cos(a * p[1] + b * p[2]) * std::exp(a * (p[0] + p[1]));
+      double term4 = std::exp(2.0 * a * p[0]) + std::exp(2.0 * a * p[1]) + std::exp(2.0 * a * p[2]);
       double pressure = factor * (term1 + term2 + term3 + term4);
 
-        values[0] =  nu * a * std::exp(-nu * b * b * get_time())* a * std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) - b * std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]);
-        values[1] = nu * a * std::exp(-nu * b * b * get_time())* a * std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) - a * std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) + pressure;
-        values[2] =  nu * a * std::exp(-nu * b * b * get_time())* b * std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) + a * std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]);
-        */
-      double term1 = 2.0 * std::sin(a * p[0] + b * -1.0) * std::cos(a * p[2] + b * p[0]) * std::exp(a * (-1.0 + p[2]));   
-      double term2 = 2.0 * std::sin(a * -1.0 + b * p[2]) * std::cos(a * p[0] + b * -1.0) * std::exp(a * (p[0] + p[2]));
-      double term3 = 2.0 * std::sin(a * p[2] + b * p[0]) * std::cos(a * -1.0 + b * p[2]) * std::exp(a * (p[0] + -1.0));
-      double term4 = std::exp(2.0 * a * p[0]) + std::exp(2.0 * a * -1.0) + std::exp(2.0 * a * p[2]);
-    double pressure = factor * (term1 + term2 + term3 + term4);
+      values[0] =  - nu * a * std::exp(-nu * b * b * get_time()) * ( a * std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) - b * std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) );
+      values[1] = - nu * a * std::exp(-nu * b * b * get_time()) * (a * std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) - a * std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2])) - pressure;
+      values[2] = - nu * a * std::exp(-nu * b * b * get_time()) * (b * std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) + a * std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]));
 
-values[0] =  nu * a * std::exp(-nu * b * b * get_time()) * a * std::exp(a * p[0]) * std::cos(a * -1.0 + b * p[2]) - b * std::exp(a * p[2]) * std::sin(a * p[0] + b * -1.0);
-values[1] = nu * a * std::exp(-nu * b * b * get_time()) * a * std::exp(a * -1.0) * std::sin(a * p[2] + b * p[0]) - a * std::exp(a * p[0]) * std::sin(a * -1.0 + b * p[2]) + pressure;
-values[2] =  nu * a * std::exp(-nu * b * b * get_time()) * b * std::exp(a * p[2]) * std::cos(a * p[0] + b * -1.0) + a * std::exp(a * -1.0) * std::cos(a * p[2] + b * p[0]);
-
-}
-virtual double value(const Point<dim> &p, const unsigned int component) const override
-{
-    // p[1] = -1; //y=-1
-    double factor = -(a * a * std::exp(-2.0 * nu * b * b * get_time())) / 2.0;
-    double term1 = 2.0 * std::sin(a * p[0] + b * -1.0) * std::cos(a * p[2] + b * p[0]) * std::exp(a * (-1.0 + p[2]));
-    double term2 = 2.0 * std::sin(a*-1.0 + b * p[2]) * std::cos(a * p[0] + b * -1.0) * std::exp(a * (p[0] + p[2]));
-    double term3 = 2.0 * std::sin(a * p[2] + b * p[0]) * std::cos(a * -1.0 + b * p[2]) * std::exp(a * (p[0] + -1.0));
-    double term4 = std::exp(2.0 * a * p[0]) + std::exp(-2.0 * a) + std::exp(2.0 * a * p[2]);
-    double pressure = factor * (term1 + term2 + term3 + term4);
-
-    if (component == 0)
-    {
-        return nu * a * std::exp(-nu * b * b * get_time()) * a * std::exp(a * p[0]) * std::cos(a * -1 + b * p[2]) - b * std::exp(a * p[2]) * std::sin(a * p[0] + b * -1.0);
-    }
-    else if (component == 1)
-    {
-        return nu * a * std::exp(-nu * b * b * get_time()) * a * std::exp(-a) * std::sin(a * p[2] + b * p[0]) - a * std::exp(a * p[0]) * std::sin(a * -1.0 + b * p[2]) + pressure;
-    }
-    else 
-        return nu * a * std::exp(-nu * b * b * get_time()) * b * std::exp(a * p[2]) * std::cos(a * p[0] - b ) + a * std::exp(-a) * std::cos(a * p[2] + b * p[0]);
-        
       }
-          
-      private:
-      const double nu = 1e-3;
-      const double a = M_PI / 4.0;
-      const double b = M_PI / 2.0;  
+      virtual double value(const Point<dim> &p, const unsigned int component) const override
+      {
+      double factor = -(a * a * std::exp(-2 * nu * b * b * get_time())) / 2.0;
+      double term1 = 2.0 * std::sin(a * p[0] + b * p[1]) * std::cos(a * p[2] + b * p[0]) * std::exp(a * (p[1] + p[2]));   
+      double term2 = 2.0 * std::sin(a * p[1] + b * p[2]) * std::cos(a * p[0] + b * p[1]) * std::exp(a * (p[0] + p[2]));
+      double term3 = 2.0 * std::sin(a * p[2] + b * p[0]) * std::cos(a * p[1] + b * p[2]) * std::exp(a * (p[0] + p[1]));
+      double term4 = std::exp(2.0 * a * p[0]) + std::exp(2.0 * a * p[1]) + std::exp(2.0 * a * p[2]);
+      double pressure = factor * (term1 + term2 + term3 + term4);
+      if (component == 0)
+          {
+              return- nu * a * std::exp(-nu * b * b * get_time()) * ( a * std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) - b * std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) );
+          }
+          else if (component == 1)
+          {
+              return - nu * a * std::exp(-nu * b * b * get_time()) * (a * std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) - a * std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2])) - pressure;
+          }
+          else 
+              return - nu * a * std::exp(-nu * b * b * get_time()) * (b * std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) + a * std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]));
+            }
+                
+            private:
+            const double nu = 1e-2;
+            const double a = M_PI / 4.0;
+            const double b = M_PI / 2.0;  
 
     };
 
@@ -253,20 +230,57 @@ virtual double value(const Point<dim> &p, const unsigned int component) const ov
     }
 
     virtual double
-    value(const Point<dim> & /*p*/, const unsigned int component) const override
+    value(const Point<dim> & p, const unsigned int component) const override
     {
-      if (component == 0)
-        return 0.;
-      else
-        return 0.;
-    }
+    double factor = -(a * a * std::exp(-2 * nu * b * b * 0.0)) / 2.0;
+    double term1 = 2 * std::sin(a * p[0] + b * p[1]) * std::cos(a * p[2] + b * p[0]) * std::exp(a * (p[1] + p[2]));
+    double term2 = 2 * std::sin(a * p[1] + b * p[2]) * std::cos(a * p[0] + b * p[1]) * std::exp(a * (p[0] + p[2]));
+    double term3 = 2 * std::sin(a * p[2] + b * p[0]) * std::cos(a * p[1] + b * p[2]) * std::exp(a * (p[0] + p[1]));
+    double term4 = std::exp(2 * a * p[0]) + std::exp(2 * a * p[1]) + std::exp(2 * a * p[2]);
+    double pressure = factor * (term1 + term2 + term3 + term4);
+
+        if (component == 0)
+        {
+            return -a * std::exp(-nu * b * b * 0.0) * 
+                  (std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) + 
+                    std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]));
+        }
+        else if (component == 1)
+        {
+            return -a * std::exp(-nu * b * b * 0.0) * 
+                  (std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) + 
+                    std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]));
+        }
+        else if (component == 2)
+        {
+            return -a * std::exp(-nu * b * b * 0.0) * 
+                  (std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) + 
+                    std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]));
+        }
+        else
+        {
+            return pressure;
+        }
+      }
     virtual void
-    vector_value(const Point<dim> & /*p*/, Vector<double> &values) const override
+    vector_value(const Point<dim> & p, Vector<double> &values) const override
     {
-      values[0] = 0;
-      values[1] = 0.;
-      values[2] = 0.;
+    double factor = -(a * a * std::exp(-2 * nu * b * b * 0.0)) / 2.0;
+    double term1 = 2.0 * std::sin(a * p[0] + b * p[1]) * std::cos(a * p[2] + b * p[0]) * std::exp(a * (p[1] + p[2]));
+    double term2 = 2.0 * std::sin(a * p[1] + b * p[2]) * std::cos(a * p[0] + b * p[1]) * std::exp(a * (p[0] + p[2]));
+    double term3 = 2.0 * std::sin(a * p[2] + b * p[0]) * std::cos(a * p[1] + b * p[2]) * std::exp(a * (p[0] + p[1]));
+    double term4 = std::exp(2 * a * p[0]) + std::exp(2 * a * p[1]) + std::exp(2 * a * p[2]);
+    double pressure = (factor * (term1 + term2 + term3 + term4));
+
+      values[0] = -a * std::exp( -nu * b * b * 0.0 ) * ( std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) + std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) );
+      values[1] = -a * std::exp( -nu * b * b * 0.0 ) * ( std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) + std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) );
+      values[2] = -a * std::exp( -nu * b * b * 0.0 ) * ( std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) + std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]) );
+      values[3] = pressure;
     }
+    private:
+    const double nu = 1e-2;
+    const double a = M_PI / 4.0;
+    const double b = M_PI / 2.0; 
   };
 
   
@@ -634,7 +648,7 @@ protected:
   // Problem definition. ///////////////////////////////////////////////////////
 
   // Kinematic viscosity [m2/s].
-  const double nu = 1e-3;
+  const double nu = 1e-2;
 
   // Density
   const double rho = 1.;
@@ -663,6 +677,9 @@ protected:
 
   // TIme step.
   const double deltat;
+
+  ExactSolution exact_solution;
+
 
   // g(x).
   FunctionG function_g;
