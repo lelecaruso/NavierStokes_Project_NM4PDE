@@ -1,29 +1,52 @@
-#include "NavierStokes2D.hpp"
-
+#include "Convergence3D.hpp"
 
 
 void NavierStokes::setup()
 {
   // Create the mesh.
-  {
+/*  {
     pcout << "Initializing the mesh" << std::endl;
-
+    
+    // For a tetrahedral mesh, we should use Triangulation<dim, dim> 
+    // with the Simplex flag
     Triangulation<dim> mesh_serial;
+    
+    
+    GridGenerator::subdivided_hyper_cube_with_simplices(mesh_serial, 
+                                                      1,  // number of subdivisions per direction
+                                                      -1.0, 1.0);
+    mesh_serial.refine_global(3);  
 
-    GridIn<dim> grid_in;
-    grid_in.attach_triangulation(mesh_serial);
-
-    std::ifstream grid_in_file(mesh_file_name);
-    grid_in.read_msh(grid_in_file);
-
+    // Partition for parallel computation
     GridTools::partition_triangulation(mpi_size, mesh_serial);
     const auto construction_data = TriangulationDescription::Utilities::
-        create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
+      create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
     mesh.create_triangulation(construction_data);
-
-    pcout << "  Number of elements = " << mesh.n_global_active_cells()
+    
+    pcout << " Number of elements = " << mesh.n_global_active_cells()
           << std::endl;
   }
+*/
+  // Initialize the mesh from file
+    {
+      pcout << "Initializing the mesh" << std::endl;
+  
+      Triangulation<dim> mesh_serial;
+  
+      GridIn<dim> grid_in;
+      grid_in.attach_triangulation(mesh_serial);
+  
+      std::ifstream grid_in_file(mesh_file_name);
+      grid_in.read_msh(grid_in_file);
+  
+      GridTools::partition_triangulation(mpi_size, mesh_serial);
+      const auto construction_data = TriangulationDescription::Utilities::
+          create_description_from_triangulation(mesh_serial, MPI_COMM_WORLD);
+      mesh.create_triangulation(construction_data);
+  
+      pcout << "  Number of elements = " << mesh.n_global_active_cells()
+            << std::endl;
+    }
 
   pcout << "-----------------------------------------------" << std::endl;
 
@@ -158,6 +181,7 @@ void NavierStokes::setup()
     solution.reinit(block_owned_dofs, block_relevant_dofs, MPI_COMM_WORLD);
   }
 }
+
 
 // Function used to assemble the first time
 void NavierStokes::assemble(const double &time)
@@ -295,9 +319,8 @@ void NavierStokes::assemble(const double &time)
     {
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
-        // NO NEUMANN
-        if (cell->face(f)->at_boundary() &&
-            (false))
+        // NEUMANN on y = -1 
+        if (cell->face(f)->at_boundary() && cell->face(f)->boundary_id()==3) 
         {
           fe_boundary_values.reinit(cell, f);
 
@@ -345,47 +368,37 @@ void NavierStokes::assemble(const double &time)
 
 // Dirichlet boundary conditions.
 {
-    std::map<types::global_dof_index, double> boundary_values;
-    std::map<types::boundary_id, const Function<dim> *> boundary_functions;
+  std::map<types::global_dof_index, double> boundary_values;
 
-    // Set inlet velocity at boundary ID `1`
-    inlet_velocity.set_time(time);
-    boundary_functions[1] = &inlet_velocity; // Inlet boundary
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                            boundary_functions,
-                                            boundary_values,
-                                            ComponentMask({true, true, false}));
+  std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
-    // Apply no-slip condition to walls and the entire cylinder (IDs 2, 4, 6, 5)
-    boundary_functions.clear();
+  // tutte le facce hanno dirich nulla a meno della faccia y=-1
+  exact_solution.set_time(time);
+
+ /* for (unsigned int i = 0; i < 6 ; ++i){
+      
+    if( i != 2)
+      boundary_functions[i] = &exact_solution;
+}*/
     
-    boundary_functions[2] = &function_g;  // Top wall (boundary ID 2)
-    
-    boundary_functions[4] = &function_g;  // Bottom wall (boundary ID 4)
+  boundary_functions[0] = &exact_solution;
+  boundary_functions[1] = &exact_solution;
+  boundary_functions[2] = &exact_solution;
+  boundary_functions[4] = &exact_solution;
+  boundary_functions[5] = &exact_solution;
 
-    boundary_functions[6] = &function_g;  // Cylinder (upper part, boundary ID 6)
-    boundary_functions[5] = &function_g;  // Cylinder (lower part, boundary ID 5)
 
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                            boundary_functions,
-                                            boundary_values,
-                                            ComponentMask({true, true, false}));
+  VectorTools::interpolate_boundary_values(dof_handler,
+                                           boundary_functions,
+                                           boundary_values,
+                                           ComponentMask(
+                                               {true, true, true, false}));
 
-    // Apply boundary values to the system (matrix, rhs, solution)
-    MatrixTools::apply_boundary_values(
-        boundary_values, system_matrix, solution, system_rhs, false);
+  MatrixTools::apply_boundary_values(
+      boundary_values, system_matrix, solution, system_rhs, false);
 
-   
 }
 
-
-/*
-  NavierStokes::previous_velocity_values.resize(n_q);
-  std::copy(current_velocity_values.begin(), current_velocity_values.end(), NavierStokes::previous_velocity_values.begin());
-*/
-  // Occorre salvare la soluzione precendente per fare ad ogni time step - precedente + C nuova
-  NavierStokes::previous_gradient_velocity_values.resize(n_q);
-  std::copy(current_velocity_gradients.begin(), current_velocity_gradients.end(), NavierStokes::previous_gradient_velocity_values.begin());
 }
 
 // Function used to assemble at time > deltat to avoid redundant computation of A,M,B
@@ -489,9 +502,8 @@ void NavierStokes::assemble_time_step(const double &time)
     {
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
-        // NO NEUMANN
-        if (cell->face(f)->at_boundary() &&
-            (false))
+    // NEUMANN on y = -1 
+        if (cell->face(f)->at_boundary() && cell->face(f)->boundary_id()==3) 
         {
           fe_boundary_values.reinit(cell, f);
 
@@ -532,47 +544,35 @@ void NavierStokes::assemble_time_step(const double &time)
 
 // Dirichlet boundary conditions.
 {
-    std::map<types::global_dof_index, double> boundary_values;
-    std::map<types::boundary_id, const Function<dim> *> boundary_functions;
+  std::map<types::global_dof_index, double> boundary_values;
+  std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
-    // Set inlet velocity at boundary ID `1`
-    inlet_velocity.set_time(time);
-    boundary_functions[1] = &inlet_velocity; // Inlet boundary
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                            boundary_functions,
-                                            boundary_values,
-                                            ComponentMask({true, true, false}));
-
-    // Apply no-slip condition to walls and the entire cylinder (IDs 2, 4, 6, 5)
-    boundary_functions.clear();
+  
+  exact_solution.set_time(time);
+  
     
-    boundary_functions[2] = &function_g;  // Top wall (boundary ID 2)
-    
-    boundary_functions[4] = &function_g;  // Bottom wall (boundary ID 4)
+  boundary_functions[0] = &exact_solution;
+  boundary_functions[1] = &exact_solution;
+  boundary_functions[2] = &exact_solution;
+  boundary_functions[4] = &exact_solution;
+  boundary_functions[5] = &exact_solution;
 
-    boundary_functions[6] = &function_g;  // Cylinder (upper part, boundary ID 6)
-    boundary_functions[5] = &function_g;  // Cylinder (lower part, boundary ID 5)
+  
 
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                            boundary_functions,
-                                            boundary_values,
-                                            ComponentMask({true, true, false}));
+  VectorTools::interpolate_boundary_values(dof_handler,
+                                           boundary_functions,
+                                           boundary_values,
+                                           ComponentMask(
+                                               {true, true, true, false}));
 
-    // Apply boundary values to the system (matrix, rhs, solution)
-    MatrixTools::apply_boundary_values(
-        boundary_values, system_matrix, solution, system_rhs, false);
+  MatrixTools::apply_boundary_values(
+      boundary_values, system_matrix, solution, system_rhs, false);
 
-   
 }
 
 
-/*
-  NavierStokes::previous_velocity_values.resize(n_q);
-  std::copy(current_velocity_values.begin(), current_velocity_values.end(), NavierStokes::previous_velocity_values.begin());
-*/
-  // Occorre salvare la soluzione precendente per fare ad ogni time step - precedente + C nuova
-  NavierStokes::previous_gradient_velocity_values.resize(n_q);
-  std::copy(current_velocity_gradients.begin(), current_velocity_gradients.end(), NavierStokes::previous_gradient_velocity_values.begin());
+
+
 }
 
 void NavierStokes::solve_time_step()
@@ -588,23 +588,19 @@ void NavierStokes::solve_time_step()
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
 
   //PreconditionBlockIdentity preconditioner;
+
   //PreconditionSIMPLE preconditioner;
+
   PreconditionaSIMPLE preconditioner;
-  //PreconditionaYosida preconditioner;
 
   pcout << " Assemblying the preconditioner... " << std::endl;
 
   dealii::Timer timerprec;
   timerprec.restart();
-     preconditioner.initialize(
+
+  preconditioner.initialize(
       system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), solution_owned);
-
-  /*preconditioner.initialize(
-      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), mass_matrix.block(0,0) , deltat ,solution_owned);
-
-
-   
-
+/*
   preconditioner.initialize(
       system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1));*/
 
@@ -649,6 +645,7 @@ void NavierStokes::output(const unsigned int &time_step) const
       DataComponentInterpretation::component_is_scalar);
   std::vector<std::string> names = {"velocity",
                                     "velocity",
+                                    "velocity",
                                     "pressure"};
 
   data_out.add_data_vector(dof_handler,
@@ -663,7 +660,7 @@ void NavierStokes::output(const unsigned int &time_step) const
 
   data_out.build_patches();
 
-  const std::string output_file_name = "output-stokes-2D";
+  const std::string output_file_name = "convergence-3D";
   data_out.write_vtu_with_pvtu_record("./",
                                       output_file_name,
                                       time_step,
@@ -709,100 +706,32 @@ void NavierStokes::solve()
     else assemble_time_step(time);
 
     solve_time_step();
-    compute_forces();
+    //compute_forces();
     output(time_step);
   }
 }
 
-void NavierStokes::compute_forces()
+double
+NavierStokes::compute_error(const VectorTools::NormType &norm_type)
 {
-  pcout << "===============================================" << std::endl;
-  pcout << "Computing forces: " << std::endl;
+  FE_SimplexP<dim> fe_linear(1);
+  MappingFE        mapping(fe_linear);
 
-  const unsigned int n_q = quadrature->size();
-  const unsigned int n_q_face = quadrature_boundary->size();
+  const QGaussSimplex<dim> quadrature_error = QGaussSimplex<dim>(fe->degree + 2);
 
-  FEValues<dim> fe_values(*fe,
-                          *quadrature,
-                          update_values | update_gradients |
-                              update_quadrature_points | update_JxW_values);
-  FEFaceValues<dim> fe_face_values(*fe,
-                                   *quadrature_boundary,
-                                   update_values | update_normal_vectors |
-                                       update_JxW_values);
+  exact_solution.set_time(static_cast<double>(T));//calculate error at the last step
 
-  FEValuesExtractors::Vector velocity(0);
-  FEValuesExtractors::Scalar pressure(dim);
+  Vector<double> error_per_cell;
+  VectorTools::integrate_difference(mapping,
+                                    dof_handler,
+                                    solution,
+                                    exact_solution,
+                                    error_per_cell,
+                                    quadrature_error,
+                                    norm_type);
 
-  drag = 0.0;
-  lift = 0.0;
+  const double error =
+    VectorTools::compute_global_error(mesh, error_per_cell, norm_type);
 
-  std::vector<Tensor<1, dim>> current_velocity_values(n_q);
-  std::vector<double> current_pressure_values(n_q);
-  std::vector<Tensor<2, dim>> current_velocity_gradients(n_q);
-
-  double local_lift = 0.0;
-  double local_drag = 0.0;
-
-  for (const auto &cell : dof_handler.active_cell_iterators())
-  {
-    if (!cell->is_locally_owned())
-      continue;
-
-    fe_values.reinit(cell);
-
-    fe_values[velocity].get_function_values(solution, current_velocity_values);
-    fe_values[pressure].get_function_values(solution, current_pressure_values);
-    fe_values[velocity].get_function_gradients(solution, current_velocity_gradients);
-
-    if (cell->at_boundary())
-    {
-      for (unsigned int f = 0; f < cell->n_faces(); ++f)
-      {
-        if (cell->face(f)->at_boundary() &&
-            (cell->face(f)->boundary_id() == 5 ||
-             cell->face(f)->boundary_id() == 6))
-        {
-          fe_face_values.reinit(cell, f);
-
-          for (unsigned int q = 0; q < n_q_face; ++q)
-          {
-            // Get the values
-            const double nx = fe_face_values.normal_vector(q)[0];
-            const double ny = fe_face_values.normal_vector(q)[1];
-
-            // Construct the tensor
-            Tensor<1, dim> tangent;
-            tangent[0] = ny;
-            tangent[1] = -nx;
-
-            local_drag += (rho * nu * fe_face_values.normal_vector(q) * current_velocity_gradients[q] * tangent * ny -
-                           current_pressure_values[q] * nx) *
-                          fe_face_values.JxW(q);
-
-            local_lift += (rho * nu * fe_face_values.normal_vector(q) * current_velocity_gradients[q] * tangent * nx +
-                           current_pressure_values[q] * ny) *
-                          fe_face_values.JxW(q);
-          }
-        }
-      }
-    }
-  }
-  drag = Utilities::MPI::sum(local_drag, MPI_COMM_WORLD);
-  lift = Utilities::MPI::sum(local_lift, MPI_COMM_WORLD);
-  pcout << "Drag :\t " << drag << " Lift :\t " << lift << std::endl;
-  // The mean velocity is defined as 2U(0,H/2,t)/3
-  // This is in the case 2D-2 unsteady
-  double mean_v = inlet_velocity.getMeanVelocity();
-  vec_drag.push_back(drag);
-  vec_lift.push_back(lift);
-  vec_drag_coeff.push_back((2. * drag) / (mean_v * mean_v * rho * 0.1)); //NO pigreco
-  vec_lift_coeff.push_back((- 2. * lift) / (mean_v * mean_v * rho * 0.1)); //NO pigreco e segno meno per avere segno opposto della Forza di Lift
-  
-  pcout
-      << "Coeff D:\t " << (2. * drag) / (mean_v * mean_v * rho * 0.1) //No pigreco
-      << " Coeff L:\t " << (- 2. * lift) / (mean_v * mean_v * rho * 0.1) << std::endl; //No pigreco e segno meno
-
-
-  pcout << "===============================================" << std::endl;
+  return error;
 }

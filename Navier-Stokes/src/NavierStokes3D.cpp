@@ -1,5 +1,4 @@
-#include "NavierStokes2D.hpp"
-
+#include "NavierStokes3D.hpp"
 
 
 void NavierStokes::setup()
@@ -158,6 +157,7 @@ void NavierStokes::setup()
     solution.reinit(block_owned_dofs, block_relevant_dofs, MPI_COMM_WORLD);
   }
 }
+
 
 // Function used to assemble the first time
 void NavierStokes::assemble(const double &time)
@@ -345,47 +345,39 @@ void NavierStokes::assemble(const double &time)
 
 // Dirichlet boundary conditions.
 {
-    std::map<types::global_dof_index, double> boundary_values;
-    std::map<types::boundary_id, const Function<dim> *> boundary_functions;
+  std::map<types::global_dof_index, double> boundary_values;
+  std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
-    // Set inlet velocity at boundary ID `1`
-    inlet_velocity.set_time(time);
-    boundary_functions[1] = &inlet_velocity; // Inlet boundary
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                            boundary_functions,
-                                            boundary_values,
-                                            ComponentMask({true, true, false}));
+  // We interpolate first the inlet velocity condition alone, then the wall
+  // condition alone, so that the latter "win" over the former where the two
+  // boundaries touch.
+  inlet_velocity.set_time(time);
+  boundary_functions[5] = &inlet_velocity;
+  VectorTools::interpolate_boundary_values(dof_handler,
+                                           boundary_functions,
+                                           boundary_values,
+                                           ComponentMask(
+                                               {true, true, true, false}));
 
-    // Apply no-slip condition to walls and the entire cylinder (IDs 2, 4, 6, 5)
-    boundary_functions.clear();
-    
-    boundary_functions[2] = &function_g;  // Top wall (boundary ID 2)
-    
-    boundary_functions[4] = &function_g;  // Bottom wall (boundary ID 4)
+  boundary_functions.clear();
+  Functions::ZeroFunction<dim> zero_function(dim + 1);
+  
+  // tag 6,7,8,9 per il cilindro
 
-    boundary_functions[6] = &function_g;  // Cylinder (upper part, boundary ID 6)
-    boundary_functions[5] = &function_g;  // Cylinder (lower part, boundary ID 5)
+  for (unsigned int i = 1; i < 11; ++i)
+    if (i != 3 && i != 5) 
+      boundary_functions[i] = &zero_function;
+  VectorTools::interpolate_boundary_values(dof_handler,
+                                           boundary_functions,
+                                           boundary_values,
+                                           ComponentMask(
+                                               {true, true, true, false}));
 
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                            boundary_functions,
-                                            boundary_values,
-                                            ComponentMask({true, true, false}));
+  MatrixTools::apply_boundary_values(
+      boundary_values, system_matrix, solution, system_rhs, false);
 
-    // Apply boundary values to the system (matrix, rhs, solution)
-    MatrixTools::apply_boundary_values(
-        boundary_values, system_matrix, solution, system_rhs, false);
-
-   
 }
 
-
-/*
-  NavierStokes::previous_velocity_values.resize(n_q);
-  std::copy(current_velocity_values.begin(), current_velocity_values.end(), NavierStokes::previous_velocity_values.begin());
-*/
-  // Occorre salvare la soluzione precendente per fare ad ogni time step - precedente + C nuova
-  NavierStokes::previous_gradient_velocity_values.resize(n_q);
-  std::copy(current_velocity_gradients.begin(), current_velocity_gradients.end(), NavierStokes::previous_gradient_velocity_values.begin());
 }
 
 // Function used to assemble at time > deltat to avoid redundant computation of A,M,B
@@ -532,47 +524,42 @@ void NavierStokes::assemble_time_step(const double &time)
 
 // Dirichlet boundary conditions.
 {
-    std::map<types::global_dof_index, double> boundary_values;
-    std::map<types::boundary_id, const Function<dim> *> boundary_functions;
+  std::map<types::global_dof_index, double> boundary_values;
+  std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
-    // Set inlet velocity at boundary ID `1`
-    inlet_velocity.set_time(time);
-    boundary_functions[1] = &inlet_velocity; // Inlet boundary
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                            boundary_functions,
-                                            boundary_values,
-                                            ComponentMask({true, true, false}));
+  // We interpolate first the inlet velocity condition alone, then the wall
+  // condition alone, so that the latter "win" over the former where the two
+  // boundaries touch.
+  inlet_velocity.set_time(time);
+  boundary_functions[5] = &inlet_velocity;
+  VectorTools::interpolate_boundary_values(dof_handler,
+                                           boundary_functions,
+                                           boundary_values,
+                                           ComponentMask(
+                                               {true, true, true, false}));
 
-    // Apply no-slip condition to walls and the entire cylinder (IDs 2, 4, 6, 5)
-    boundary_functions.clear();
-    
-    boundary_functions[2] = &function_g;  // Top wall (boundary ID 2)
-    
-    boundary_functions[4] = &function_g;  // Bottom wall (boundary ID 4)
+  boundary_functions.clear();
+  Functions::ZeroFunction<dim> zero_function(dim + 1);
+  
+  // tag 6,7,8,9 per il cilindro
 
-    boundary_functions[6] = &function_g;  // Cylinder (upper part, boundary ID 6)
-    boundary_functions[5] = &function_g;  // Cylinder (lower part, boundary ID 5)
+  for (unsigned int i = 1; i < 11; ++i)
+    if (i != 3 && i != 5) 
+      boundary_functions[i] = &zero_function;
+  VectorTools::interpolate_boundary_values(dof_handler,
+                                           boundary_functions,
+                                           boundary_values,
+                                           ComponentMask(
+                                               {true, true, true, false}));
 
-    VectorTools::interpolate_boundary_values(dof_handler,
-                                            boundary_functions,
-                                            boundary_values,
-                                            ComponentMask({true, true, false}));
+  MatrixTools::apply_boundary_values(
+      boundary_values, system_matrix, solution, system_rhs, false);
 
-    // Apply boundary values to the system (matrix, rhs, solution)
-    MatrixTools::apply_boundary_values(
-        boundary_values, system_matrix, solution, system_rhs, false);
-
-   
 }
 
 
-/*
-  NavierStokes::previous_velocity_values.resize(n_q);
-  std::copy(current_velocity_values.begin(), current_velocity_values.end(), NavierStokes::previous_velocity_values.begin());
-*/
-  // Occorre salvare la soluzione precendente per fare ad ogni time step - precedente + C nuova
-  NavierStokes::previous_gradient_velocity_values.resize(n_q);
-  std::copy(current_velocity_gradients.begin(), current_velocity_gradients.end(), NavierStokes::previous_gradient_velocity_values.begin());
+
+
 }
 
 void NavierStokes::solve_time_step()
@@ -588,7 +575,9 @@ void NavierStokes::solve_time_step()
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
 
   //PreconditionBlockIdentity preconditioner;
+
   //PreconditionSIMPLE preconditioner;
+
   PreconditionaSIMPLE preconditioner;
   //PreconditionaYosida preconditioner;
 
@@ -596,17 +585,12 @@ void NavierStokes::solve_time_step()
 
   dealii::Timer timerprec;
   timerprec.restart();
-     preconditioner.initialize(
-      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), solution_owned);
-
-  /*preconditioner.initialize(
-      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), mass_matrix.block(0,0) , deltat ,solution_owned);
-
-
-   
 
   preconditioner.initialize(
-      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1));*/
+      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), solution_owned);
+
+ /*preconditioner.initialize(
+      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), mass_matrix.block(0,0) , deltat ,solution_owned);*/ //Yosida
 
 
   timerprec.stop();
@@ -649,6 +633,7 @@ void NavierStokes::output(const unsigned int &time_step) const
       DataComponentInterpretation::component_is_scalar);
   std::vector<std::string> names = {"velocity",
                                     "velocity",
+                                    "velocity",
                                     "pressure"};
 
   data_out.add_data_vector(dof_handler,
@@ -663,7 +648,7 @@ void NavierStokes::output(const unsigned int &time_step) const
 
   data_out.build_patches();
 
-  const std::string output_file_name = "output-stokes-2D";
+  const std::string output_file_name = "output-stokes-3D";
   data_out.write_vtu_with_pvtu_record("./",
                                       output_file_name,
                                       time_step,
@@ -719,8 +704,6 @@ void NavierStokes::compute_forces()
   pcout << "===============================================" << std::endl;
   pcout << "Computing forces: " << std::endl;
 
-  const unsigned int n_q = quadrature->size();
-  const unsigned int n_q_face = quadrature_boundary->size();
 
   FEValues<dim> fe_values(*fe,
                           *quadrature,
@@ -731,15 +714,18 @@ void NavierStokes::compute_forces()
                                    update_values | update_normal_vectors |
                                        update_JxW_values);
 
+  const unsigned int n_q = quadrature->size();
+  const unsigned int n_q_face = quadrature_boundary->size();                                     
+
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
-
-  drag = 0.0;
-  lift = 0.0;
 
   std::vector<Tensor<1, dim>> current_velocity_values(n_q);
   std::vector<double> current_pressure_values(n_q);
   std::vector<Tensor<2, dim>> current_velocity_gradients(n_q);
+
+	double drag=0.;
+	double lift=0.;
 
   double local_lift = 0.0;
   double local_drag = 0.0;
@@ -759,9 +745,11 @@ void NavierStokes::compute_forces()
     {
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
-        if (cell->face(f)->at_boundary() &&
-            (cell->face(f)->boundary_id() == 5 ||
-             cell->face(f)->boundary_id() == 6))
+        if (cell->face(f)->at_boundary() && //Integro sul cilindro 
+            (cell->face(f)->boundary_id() == 6 ||
+             cell->face(f)->boundary_id() == 7 ||
+             cell->face(f)->boundary_id() == 8 ||
+             cell->face(f)->boundary_id() == 9))
         {
           fe_face_values.reinit(cell, f);
 
@@ -774,15 +762,27 @@ void NavierStokes::compute_forces()
             // Construct the tensor
             Tensor<1, dim> tangent;
             tangent[0] = ny;
-            tangent[1] = -nx;
+            tangent[1] =-nx;
+						tangent[2] = 0.;
 
-            local_drag += (rho * nu * fe_face_values.normal_vector(q) * current_velocity_gradients[q] * tangent * ny -
-                           current_pressure_values[q] * nx) *
-                          fe_face_values.JxW(q);
+            local_drag += (rho * nu * fe_face_values.normal_vector(q) * current_velocity_gradients[q] * // This is the tangential component
+						//current_velocity_values[q] * 
+						//tangent / tangent.norm_square() * tangent 
+						( tangent / tangent.norm_square() )
+						* ny 
+						-
+						current_pressure_values[q] * nx
+						)*fe_face_values.JxW(q);
 
-            local_lift += (rho * nu * fe_face_values.normal_vector(q) * current_velocity_gradients[q] * tangent * nx +
-                           current_pressure_values[q] * ny) *
-                          fe_face_values.JxW(q);
+            local_lift -= (rho * nu * fe_face_values.normal_vector(q) * current_velocity_gradients[q] * // This is the tangential components
+						//current_velocity_values[q] * 
+						//tangent / tangent.norm_square() * tangent 
+						( tangent / tangent.norm_square() )
+						* nx 
+						
+						+
+            current_pressure_values[q] * ny
+						)*fe_face_values.JxW(q);
           }
         }
       }
@@ -791,18 +791,16 @@ void NavierStokes::compute_forces()
   drag = Utilities::MPI::sum(local_drag, MPI_COMM_WORLD);
   lift = Utilities::MPI::sum(local_lift, MPI_COMM_WORLD);
   pcout << "Drag :\t " << drag << " Lift :\t " << lift << std::endl;
-  // The mean velocity is defined as 2U(0,H/2,t)/3
-  // This is in the case 2D-2 unsteady
-  double mean_v = inlet_velocity.getMeanVelocity();
-  vec_drag.push_back(drag);
-  vec_lift.push_back(lift);
-  vec_drag_coeff.push_back((2. * drag) / (mean_v * mean_v * rho * 0.1)); //NO pigreco
-  vec_lift_coeff.push_back((- 2. * lift) / (mean_v * mean_v * rho * 0.1)); //NO pigreco e segno meno per avere segno opposto della Forza di Lift
-  
-  pcout
-      << "Coeff D:\t " << (2. * drag) / (mean_v * mean_v * rho * 0.1) //No pigreco
-      << " Coeff L:\t " << (- 2. * lift) / (mean_v * mean_v * rho * 0.1) << std::endl; //No pigreco e segno meno
+  // The meam velocity is defined as 4U(0,H/2,H/2,t)/9
+  // This is in the case 3D-2 unsteady
+  const double mean_v = inlet_velocity.getMeanVelocity();
+	const double D= 0.1;
+	const double H=0.41;
 
+	const double c_d=(2.*drag)/(rho*mean_v*mean_v*D*H);
+	const double c_l=(2.*lift)/(rho*mean_v*mean_v*D*H);
+
+	pcout << "Coeff:\t " << c_d << " Coeff:\t " << c_l << std::endl;
 
   pcout << "===============================================" << std::endl;
 }

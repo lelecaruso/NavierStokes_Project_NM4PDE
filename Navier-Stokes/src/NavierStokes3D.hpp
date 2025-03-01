@@ -27,7 +27,8 @@
 #include <deal.II/lac/trilinos_parallel_block_vector.h>
 #include <deal.II/lac/trilinos_precondition.h>
 #include <deal.II/lac/trilinos_sparse_matrix.h>
-
+#include <deal.II/grid/grid_generator.h>
+#include <deal.II/grid/grid_refinement.h>
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/vector_tools.h>
@@ -44,8 +45,8 @@ using namespace dealii;
 class NavierStokes
 {
 public:
-  // Physical dimension (2D)
-  static constexpr unsigned int dim = 2;
+  // Physical dimension (3D)
+  static constexpr unsigned int dim = 3;
 
   // Function for the forcing term.
   class ForcingTerm : public Function<dim>
@@ -94,6 +95,7 @@ public:
       values[0] = 0.;
       values[1] = 0.;
       values[2] = 0.;
+      values[3] = 0.;
     }
 
     virtual double
@@ -150,7 +152,8 @@ public:
   // applying boundary conditions at the end of assembly). If we only return
   // three components, however, we may get an error message due to this function
   // being incompatible with the finite element space.
- class InletVelocity : public Function<dim>
+
+   class InletVelocity : public Function<dim>
   {
   public:
     InletVelocity()
@@ -161,8 +164,8 @@ public:
     virtual void
     vector_value(const Point<dim> & p, Vector<double> &values) const override
     {
-      //values[0] = 4.0 * u_m * p[1] * ( H - p[1] ) * std::sin(M_PI * get_time() / 8) / (H*H) ; //test3
-      values[0] = 4.0 * u_m * p[1] * ( H - p[1] )  / (H*H) ; //test 2
+  
+      values[0] = 16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] ) * std::sin(M_PI * get_time()/8.0) / (H*H*H*H) ; //test 2
       for (unsigned int i = 1; i < dim + 1; ++i)
         values[i] = 0.0;
     }
@@ -171,8 +174,7 @@ public:
     value(const Point<dim> &p, const unsigned int component = 0) const override
     {
       if (component == 0)
-        return  4.0 * u_m * p[1] * ( H - p[1] )  / (H*H) ; //test 2
-        // return 4.0 * u_m * p[1] * ( H - p[1] ) * std::sin(M_PI * get_time() / 8.0) / (H*H) ; //test 3
+        return  16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] ) * std::sin(M_PI * get_time()/8.0) / (H*H*H*H) ; //test 2
       else
         return 0;
     }
@@ -180,13 +182,12 @@ public:
     double getMeanVelocity() const
     {
 
-      return //2.0 * u_m *std::sin(get_time()*M_PI/8.0)  / 3.0; //test3
-            2.0 * u_m   / 3.0; //test 2
+      return (4.0 * u_m * std::sin(M_PI * get_time()/8.0))  / (9.0); //test 3 , la funzione 4 * U(0,H/2,H/2,t) / 9 =  (4/9) * u_m * sin(Pit/8)
     }
 
   protected:
     double H = 0.41;
-    double u_m = 1.5; //test2 && 3 // 0.3; // test 1
+    double u_m = 0.4; //test2 && 3
   };
 
   // Since we're working with block matrices, we need to make our own
@@ -344,8 +345,6 @@ public:
     // Temporary vector.
     mutable TrilinosWrappers::MPI::Vector tmp;
   };
-  
-  // SIMPLE preconditioner
   class PreconditionSIMPLE
   {
   public:
@@ -378,34 +377,37 @@ public:
     vmult(TrilinosWrappers::MPI::BlockVector &dst,
           const TrilinosWrappers::MPI::BlockVector &src) const
     {
-      const unsigned int maxiter = 100000;
+      const unsigned int maxiter = 10000;
       const double tol = 1e-2;
       SolverControl solver_F(maxiter, tol * src.block(0).l2_norm());
 
       SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres(solver_F);
 
       // Store in temporaries the results
-      TrilinosWrappers::MPI::Vector yu = src.block(0);
-      TrilinosWrappers::MPI::Vector yp = src.block(1);
-      TrilinosWrappers::MPI::Vector tmp = src.block(1);
+      TrilinosWrappers::MPI::Vector y_u = src.block(0);
+      TrilinosWrappers::MPI::Vector y_p = src.block(1);
 
-      solver_gmres.solve(*F, yu, src.block(0), preconditioner_F);
-      // F*xu -> zu
-      B->vmult(tmp, yu);
-      tmp -= src.block(1);
-      // -S*zp = xp - B*zu
-      SolverControl solver_S(maxiter, tol * tmp.l2_norm());
+      TrilinosWrappers::MPI::Vector temp_1 = src.block(1);
+
+      solver_gmres.solve(*F, y_u, src.block(0), preconditioner_F);
+
+      B->vmult(temp_1, y_u);
+      temp_1 -= src.block(1);
+
+      SolverControl solver_S(maxiter, tol * temp_1.l2_norm());
       SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
-      solver_cg.solve(S_tilde, yp, tmp, preconditioner_S);
-      // pression dst = zp / alpha
-      dst.block(1) = yp;
-      dst.block(1) *= 1. / alpha;
-      B_T->vmult(dst.block(0), dst.block(1));
-      // velocity dst = zu - D^-1*B_T*yp
-      dst.block(0).scale(diag_D_inv);
-      dst.block(0) -= yu;
-      dst.block(0) *= -1.;
+      solver_cg.solve(S_tilde, y_p, temp_1, preconditioner_S);
 
+      dst.block(1) = y_p;
+      dst.block(1) *= 1. / alpha;
+      // temp_1.reinit(dst.block(0));
+
+      B_T->vmult(dst.block(0), dst.block(1));
+      // Cannot be same vector
+      // D_inv.vmult(dst.block(0), temp_1);
+      dst.block(0).scale(diag_D_inv);
+      dst.block(0) -= y_u;
+      dst.block(0) *= -1.;
     }
 
   protected:
@@ -420,7 +422,6 @@ public:
     TrilinosWrappers::PreconditionILU preconditioner_S;
   };
 
-  // approximate SIMPLE preconditioner
   class PreconditionaSIMPLE
   {
   public:
@@ -454,13 +455,13 @@ public:
           const TrilinosWrappers::MPI::BlockVector &src) const
     {
 
-      const unsigned int maxiter = 100000;
+      const unsigned int maxiter = 10000;
       const double tol = 1e-2;
       SolverControl solver_F(maxiter, tol * src.block(0).l2_norm());
       SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres(solver_F);
 
       tmp.reinit(src.block(1));
-      
+      // preconditionerF.vmult(dst.block(0), src.block(0));
       solver_gmres.solve(*F, dst.block(0), src.block(0), preconditionerF);
 
       dst.block(1) = src.block(1);
@@ -471,6 +472,8 @@ public:
       SolverControl solver_S(maxiter, tol * tmp.l2_norm());
       SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
       solver_cg.solve(S, dst.block(1), tmp, preconditionerS);
+      // preconditionerS.vmult(dst.block(1), tmp);
+
       dst.block(0).scale(diag_D);
       dst.block(1) *= 1.0 / alpha;
       B_T->vmult_add(dst.block(0), dst.block(1));
@@ -492,6 +495,8 @@ public:
     mutable TrilinosWrappers::MPI::Vector tmp2;
     const double alpha = 0.5;
   };
+
+
 
   // Yosida preconditioner -- the inverse of Mu is replaced by the inverse of it's diagonal's elements
   class PreconditionYosida
@@ -665,7 +670,6 @@ public:
     mutable TrilinosWrappers::MPI::Vector tmp2;
   };
 
-
   // Constructor.
   NavierStokes(const std::string &mesh_file_name_,
                const unsigned int &degree_velocity_,
@@ -805,7 +809,6 @@ protected:
   TrilinosWrappers::BlockSparseMatrix mass_matrix;
   // C(u_k)
   TrilinosWrappers::BlockSparseMatrix convection_matrix;
-
 
   // Pressure mass matrix, needed for preconditioning. We use a block matrix for
   // convenience, but in practice we only look at the pressure-pressure block.

@@ -27,7 +27,8 @@
 #include <deal.II/lac/trilinos_parallel_block_vector.h>
 #include <deal.II/lac/trilinos_precondition.h>
 #include <deal.II/lac/trilinos_sparse_matrix.h>
-
+#include <deal.II/grid/grid_generator.h>
+#include <deal.II/grid/grid_refinement.h>
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/vector_tools.h>
@@ -44,8 +45,8 @@ using namespace dealii;
 class NavierStokes
 {
 public:
-  // Physical dimension (2D)
-  static constexpr unsigned int dim = 2;
+  // Physical dimension (3D)
+  static constexpr unsigned int dim = 3;
 
   // Function for the forcing term.
   class ForcingTerm : public Function<dim>
@@ -79,7 +80,7 @@ public:
     const double g = 0.0;
   };
 
-  // Dirichlet boundary conditions.
+  // Homog. Dirichlet boundary conditions.
   class FunctionG : public Function<dim>
   {
   public:
@@ -94,6 +95,7 @@ public:
       values[0] = 0.;
       values[1] = 0.;
       values[2] = 0.;
+      values[3] = 0.;
     }
 
     virtual double
@@ -103,21 +105,124 @@ public:
     }
   };
 
-  // Neumann boundary conditions.
-  class FunctionH : public Function<dim>
+    //Exact sol
+    class ExactSolution : public Function<dim>
+    {
+    public:
+      // Constructor.
+      ExactSolution() : Function<dim>(dim + 1)
+      {
+      }
+  
+      virtual void
+      vector_value(const Point<dim> & p, Vector<double> &values) const override
+      {
+      double factor = -(a * a * std::exp(-2 * nu * b * b * get_time())) / 2.0;
+      double term1 = 2.0 * std::sin(a * p[0] + b * p[1]) * std::cos(a * p[2] + b * p[0]) * std::exp(a * (p[1] + p[2]));
+      double term2 = 2.0 * std::sin(a * p[1] + b * p[2]) * std::cos(a * p[0] + b * p[1]) * std::exp(a * (p[0] + p[2]));
+      double term3 = 2.0 * std::sin(a * p[2] + b * p[0]) * std::cos(a * p[1] + b * p[2]) * std::exp(a * (p[0] + p[1]));
+      double term4 = std::exp(2 * a * p[0]) + std::exp(2 * a * p[1]) + std::exp(2 * a * p[2]);
+      double pressure = (factor * (term1 + term2 + term3 + term4));
+
+        values[0] = -a * std::exp( -nu * b * b * get_time() ) * ( std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) + std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) );
+        values[1] = -a * std::exp( -nu * b * b * get_time() ) * ( std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) + std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) );
+        values[2] = -a * std::exp( -nu * b * b * get_time() ) * ( std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) + std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]) );
+        // values[3] = 0;
+        values[3] = pressure;
+      }
+      virtual double
+      value(const Point<dim> & p, const unsigned int component) const override
+      {
+      double factor = -(a * a * std::exp(-2 * nu * b * b * get_time())) / 2.0;
+      double term1 = 2 * std::sin(a * p[0] + b * p[1]) * std::cos(a * p[2] + b * p[0]) * std::exp(a * (p[1] + p[2]));
+      double term2 = 2 * std::sin(a * p[1] + b * p[2]) * std::cos(a * p[0] + b * p[1]) * std::exp(a * (p[0] + p[2]));
+      double term3 = 2 * std::sin(a * p[2] + b * p[0]) * std::cos(a * p[1] + b * p[2]) * std::exp(a * (p[0] + p[1]));
+      double term4 = std::exp(2 * a * p[0]) + std::exp(2 * a * p[1]) + std::exp(2 * a * p[2]);
+      double pressure = factor * (term1 + term2 + term3 + term4);
+
+          if (component == 0)
+          {
+              return -a * std::exp( -nu * b * b * get_time() ) * ( std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) + std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) );
+          }
+          else if (component == 1)
+          {
+              return -a * std::exp( -nu * b * b * get_time() ) * ( std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) + std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) );
+          }
+          else if (component == 2)
+          {
+              return -a * std::exp( -nu * b * b * get_time() ) * ( std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) + std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]) );
+          }
+          else
+          {
+              //return 0;
+              return pressure;
+          }
+        }
+      
+      private:
+      const double nu = 1e-2;
+      const double a = M_PI / 4.0;
+      const double b = M_PI / 2.0; 
+
+    };
+
+// Neumann boundary conditions.
+class FunctionH : public Function<dim>
+{
+public:
+  // Constructor.
+  FunctionH() : Function<dim>(dim)
   {
-  public:
-    // Constructor.
-    FunctionH()
-    {
-    }
+  }
 
-    virtual double
-    value(const Point<dim> & /*p*/, const unsigned int /*component*/) const override
-    {
-      return 0.;
-    }
-  };
+  virtual void
+  vector_value(const Point<dim> & p, Vector<double> &values) const override
+  {
+    //vettore normale al piano y = - 1 è n = (0,1,0)
+    //p[1] = -1; //y=-1
+
+    //expression of H 
+    //H=ν∂u/∂n​−pn =  ν∂u/∂n - (0,p(x,-1,z),0)
+      double factor = -(a * a * std::exp(-2 * nu * b * b * get_time())) / 2.0;
+      double term1 = 2.0 * std::sin(a * p[0] + b * p[1]) * std::cos(a * p[2] + b * p[0]) * std::exp(a * (p[1] + p[2]));   
+      double term2 = 2.0 * std::sin(a * p[1] + b * p[2]) * std::cos(a * p[0] + b * p[1]) * std::exp(a * (p[0] + p[2]));
+      double term3 = 2.0 * std::sin(a * p[2] + b * p[0]) * std::cos(a * p[1] + b * p[2]) * std::exp(a * (p[0] + p[1]));
+      double term4 = std::exp(2.0 * a * p[0]) + std::exp(2.0 * a * p[1]) + std::exp(2.0 * a * p[2]);
+      double pressure = factor * (term1 + term2 + term3 + term4);
+
+      values[0] =  - nu * a * std::exp(-nu * b * b * get_time()) * ( a * std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) - b * std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) );
+      values[1] = - nu * a * std::exp(-nu * b * b * get_time()) * (a * std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) - a * std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2])) - pressure;
+      values[2] = - nu * a * std::exp(-nu * b * b * get_time()) * (b * std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) + a * std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]));
+
+      }
+      virtual double value(const Point<dim> &p, const unsigned int component) const override
+      {
+      double factor = -(a * a * std::exp(-2 * nu * b * b * get_time())) / 2.0;
+      double term1 = 2.0 * std::sin(a * p[0] + b * p[1]) * std::cos(a * p[2] + b * p[0]) * std::exp(a * (p[1] + p[2]));   
+      double term2 = 2.0 * std::sin(a * p[1] + b * p[2]) * std::cos(a * p[0] + b * p[1]) * std::exp(a * (p[0] + p[2]));
+      double term3 = 2.0 * std::sin(a * p[2] + b * p[0]) * std::cos(a * p[1] + b * p[2]) * std::exp(a * (p[0] + p[1]));
+      double term4 = std::exp(2.0 * a * p[0]) + std::exp(2.0 * a * p[1]) + std::exp(2.0 * a * p[2]);
+      double pressure = factor * (term1 + term2 + term3 + term4);
+      if (component == 0)
+          {
+              return- nu * a * std::exp(-nu * b * b * get_time()) * ( a * std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) - b * std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) );
+          }
+          else if (component == 1)
+          {
+              return - nu * a * std::exp(-nu * b * b * get_time()) * (a * std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) - a * std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2])) - pressure;
+          }
+          else 
+              return - nu * a * std::exp(-nu * b * b * get_time()) * (b * std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) + a * std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]));
+            }
+                
+            private:
+            const double nu = 1e-2;
+            const double a = M_PI / 4.0;
+            const double b = M_PI / 2.0;  
+
+    };
+
+  
 
   // Function for the initial condition.
   class FunctionU0 : public Function<dim>
@@ -128,67 +233,60 @@ public:
     }
 
     virtual double
-    value(const Point<dim> & /*p*/, const unsigned int component) const override
+    value(const Point<dim> & p, const unsigned int component) const override
     {
-      if (component == 0)
-        return 0.;
-      else
-        return 0.;
-    }
-    virtual void
-    vector_value(const Point<dim> & /*p*/, Vector<double> &values) const override
-    {
-      values[0] = 0;
-      values[1] = 0.;
-      values[2] = 0.;
-    }
-  };
+    double factor = -(a * a * std::exp(-2 * nu * b * b * 0.0)) / 2.0;
+    double term1 = 2 * std::sin(a * p[0] + b * p[1]) * std::cos(a * p[2] + b * p[0]) * std::exp(a * (p[1] + p[2]));
+    double term2 = 2 * std::sin(a * p[1] + b * p[2]) * std::cos(a * p[0] + b * p[1]) * std::exp(a * (p[0] + p[2]));
+    double term3 = 2 * std::sin(a * p[2] + b * p[0]) * std::cos(a * p[1] + b * p[2]) * std::exp(a * (p[0] + p[1]));
+    double term4 = std::exp(2 * a * p[0]) + std::exp(2 * a * p[1]) + std::exp(2 * a * p[2]);
+    double pressure = factor * (term1 + term2 + term3 + term4);
 
-  // Function for inlet velocity. This actually returns an object with four
-  // components (one for each velocity component, and one for the pressure), but
-  // then only the first three are really used (see the component mask when
-  // applying boundary conditions at the end of assembly). If we only return
-  // three components, however, we may get an error message due to this function
-  // being incompatible with the finite element space.
- class InletVelocity : public Function<dim>
-  {
-  public:
-    InletVelocity()
-        : Function<dim>(dim + 1)
-    {
-    }
-
+        if (component == 0)
+        {
+            return -a * std::exp(-nu * b * b * 0.0) * 
+                  (std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) + 
+                    std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]));
+        }
+        else if (component == 1)
+        {
+            return -a * std::exp(-nu * b * b * 0.0) * 
+                  (std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) + 
+                    std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]));
+        }
+        else if (component == 2)
+        {
+            return -a * std::exp(-nu * b * b * 0.0) * 
+                  (std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) + 
+                    std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]));
+        }
+        else
+        {
+            return pressure;
+        }
+      }
     virtual void
     vector_value(const Point<dim> & p, Vector<double> &values) const override
     {
-      //values[0] = 4.0 * u_m * p[1] * ( H - p[1] ) * std::sin(M_PI * get_time() / 8) / (H*H) ; //test3
-      values[0] = 4.0 * u_m * p[1] * ( H - p[1] )  / (H*H) ; //test 2
-      for (unsigned int i = 1; i < dim + 1; ++i)
-        values[i] = 0.0;
+    double factor = -(a * a * std::exp(-2 * nu * b * b * 0.0)) / 2.0;
+    double term1 = 2.0 * std::sin(a * p[0] + b * p[1]) * std::cos(a * p[2] + b * p[0]) * std::exp(a * (p[1] + p[2]));
+    double term2 = 2.0 * std::sin(a * p[1] + b * p[2]) * std::cos(a * p[0] + b * p[1]) * std::exp(a * (p[0] + p[2]));
+    double term3 = 2.0 * std::sin(a * p[2] + b * p[0]) * std::cos(a * p[1] + b * p[2]) * std::exp(a * (p[0] + p[1]));
+    double term4 = std::exp(2 * a * p[0]) + std::exp(2 * a * p[1]) + std::exp(2 * a * p[2]);
+    double pressure = (factor * (term1 + term2 + term3 + term4));
+
+      values[0] = -a * std::exp( -nu * b * b * 0.0 ) * ( std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) + std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) );
+      values[1] = -a * std::exp( -nu * b * b * 0.0 ) * ( std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) + std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) );
+      values[2] = -a * std::exp( -nu * b * b * 0.0 ) * ( std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) + std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]) );
+      values[3] = pressure;
     }
-
-    virtual double
-    value(const Point<dim> &p, const unsigned int component = 0) const override
-    {
-      if (component == 0)
-        return  4.0 * u_m * p[1] * ( H - p[1] )  / (H*H) ; //test 2
-        // return 4.0 * u_m * p[1] * ( H - p[1] ) * std::sin(M_PI * get_time() / 8.0) / (H*H) ; //test 3
-      else
-        return 0;
-    }
-
-    double getMeanVelocity() const
-    {
-
-      return //2.0 * u_m *std::sin(get_time()*M_PI/8.0)  / 3.0; //test3
-            2.0 * u_m   / 3.0; //test 2
-    }
-
-  protected:
-    double H = 0.41;
-    double u_m = 1.5; //test2 && 3 // 0.3; // test 1
+    private:
+    const double nu = 1e-2;
+    const double a = M_PI / 4.0;
+    const double b = M_PI / 2.0; 
   };
 
+  
   // Since we're working with block matrices, we need to make our own
   // preconditioner class. A preconditioner class can be any class that exposes
   // a vmult method that applies the inverse of the preconditioner.
@@ -344,8 +442,6 @@ public:
     // Temporary vector.
     mutable TrilinosWrappers::MPI::Vector tmp;
   };
-  
-  // SIMPLE preconditioner
   class PreconditionSIMPLE
   {
   public:
@@ -378,34 +474,37 @@ public:
     vmult(TrilinosWrappers::MPI::BlockVector &dst,
           const TrilinosWrappers::MPI::BlockVector &src) const
     {
-      const unsigned int maxiter = 100000;
+      const unsigned int maxiter = 10000;
       const double tol = 1e-2;
       SolverControl solver_F(maxiter, tol * src.block(0).l2_norm());
 
       SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres(solver_F);
 
       // Store in temporaries the results
-      TrilinosWrappers::MPI::Vector yu = src.block(0);
-      TrilinosWrappers::MPI::Vector yp = src.block(1);
-      TrilinosWrappers::MPI::Vector tmp = src.block(1);
+      TrilinosWrappers::MPI::Vector y_u = src.block(0);
+      TrilinosWrappers::MPI::Vector y_p = src.block(1);
 
-      solver_gmres.solve(*F, yu, src.block(0), preconditioner_F);
-      // F*xu -> zu
-      B->vmult(tmp, yu);
-      tmp -= src.block(1);
-      // -S*zp = xp - B*zu
-      SolverControl solver_S(maxiter, tol * tmp.l2_norm());
+      TrilinosWrappers::MPI::Vector temp_1 = src.block(1);
+
+      solver_gmres.solve(*F, y_u, src.block(0), preconditioner_F);
+
+      B->vmult(temp_1, y_u);
+      temp_1 -= src.block(1);
+
+      SolverControl solver_S(maxiter, tol * temp_1.l2_norm());
       SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
-      solver_cg.solve(S_tilde, yp, tmp, preconditioner_S);
-      // pression dst = zp / alpha
-      dst.block(1) = yp;
-      dst.block(1) *= 1. / alpha;
-      B_T->vmult(dst.block(0), dst.block(1));
-      // velocity dst = zu - D^-1*B_T*yp
-      dst.block(0).scale(diag_D_inv);
-      dst.block(0) -= yu;
-      dst.block(0) *= -1.;
+      solver_cg.solve(S_tilde, y_p, temp_1, preconditioner_S);
 
+      dst.block(1) = y_p;
+      dst.block(1) *= 1. / alpha;
+      // temp_1.reinit(dst.block(0));
+
+      B_T->vmult(dst.block(0), dst.block(1));
+      // Cannot be same vector
+      // D_inv.vmult(dst.block(0), temp_1);
+      dst.block(0).scale(diag_D_inv);
+      dst.block(0) -= y_u;
+      dst.block(0) *= -1.;
     }
 
   protected:
@@ -420,7 +519,6 @@ public:
     TrilinosWrappers::PreconditionILU preconditioner_S;
   };
 
-  // approximate SIMPLE preconditioner
   class PreconditionaSIMPLE
   {
   public:
@@ -454,13 +552,13 @@ public:
           const TrilinosWrappers::MPI::BlockVector &src) const
     {
 
-      const unsigned int maxiter = 100000;
+      const unsigned int maxiter = 10000;
       const double tol = 1e-2;
       SolverControl solver_F(maxiter, tol * src.block(0).l2_norm());
       SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres(solver_F);
 
       tmp.reinit(src.block(1));
-      
+      // preconditionerF.vmult(dst.block(0), src.block(0));
       solver_gmres.solve(*F, dst.block(0), src.block(0), preconditionerF);
 
       dst.block(1) = src.block(1);
@@ -471,6 +569,8 @@ public:
       SolverControl solver_S(maxiter, tol * tmp.l2_norm());
       SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
       solver_cg.solve(S, dst.block(1), tmp, preconditionerS);
+      // preconditionerS.vmult(dst.block(1), tmp);
+
       dst.block(0).scale(diag_D);
       dst.block(1) *= 1.0 / alpha;
       B_T->vmult_add(dst.block(0), dst.block(1));
@@ -493,179 +593,6 @@ public:
     const double alpha = 0.5;
   };
 
-  // Yosida preconditioner -- the inverse of Mu is replaced by the inverse of it's diagonal's elements
-  class PreconditionYosida
-  {
-  public:
-    void
-    initialize(const TrilinosWrappers::SparseMatrix &F_,
-               const TrilinosWrappers::SparseMatrix &B_,
-               const TrilinosWrappers::SparseMatrix &B_t,
-               const TrilinosWrappers::SparseMatrix &M_,
-               const double dt,
-               const TrilinosWrappers::MPI::BlockVector &sol_owned)
-    {
-      F = &F_;
-      B = &B_;
-      B_T = &B_t;
-      M = &M_;
-      
-      diag_D_inv.reinit(sol_owned.block(0));
-
-      for (unsigned int i : diag_D_inv.locally_owned_elements())
-      {
-        double temp = M->diag_element(i);
-        diag_D_inv[i] = dt / temp;
-      }
-
-      // Create S_tilde
-      B_.mmult(S_tilde, B_t, diag_D_inv);
-    
-      // Initialize the preconditioners
-      preconditioner_F.initialize(*F);
-      preconditioner_S.initialize(S_tilde);
-    }
-    void
-    vmult(TrilinosWrappers::MPI::BlockVector &dst,
-          const TrilinosWrappers::MPI::BlockVector &src) const
-    {
-      const unsigned int maxiter = 100000;
-      const double tol = 1e-2;
-      SolverControl solver_F(maxiter, tol * src.block(0).l2_norm());
-
-      SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres(solver_F);
-
-      // Store in temporaries the results
-      TrilinosWrappers::MPI::Vector yu = src.block(0);
-      TrilinosWrappers::MPI::Vector yp = src.block(1);
-      TrilinosWrappers::MPI::Vector tmp = src.block(1);
-      TrilinosWrappers::MPI::Vector tmp2 = src.block(0);
-
-      solver_gmres.solve(*F, yu, src.block(0), preconditioner_F);
-      // F*xu -> zu
-      B->vmult(tmp, yu);
-      tmp -= src.block(1);
-      // -S*zp = xp - B*zu
-      SolverControl solver_S(maxiter, tol * tmp.l2_norm());
-      SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
-      solver_cg.solve(S_tilde, yp, tmp, preconditioner_S);
-      // pression dst = zp
-      dst.block(1) = yp;
-      B_T->vmult(dst.block(0), dst.block(1));
-      // velocity dst = zu - F^-1*B_T*yp
-      dst.block(0).scale(diag_D_inv);
-      dst.block(0) -= yu;
-      dst.block(0) *= -1.;
-
-    }
-
-  protected:
-
-    const TrilinosWrappers::SparseMatrix *F;
-    const TrilinosWrappers::SparseMatrix *B_T;
-    const TrilinosWrappers::SparseMatrix *B;
-    const TrilinosWrappers::SparseMatrix *M;
-    TrilinosWrappers::SparseMatrix S_tilde;
-    TrilinosWrappers::MPI::Vector diag_D_inv;
-    TrilinosWrappers::PreconditionILU preconditioner_F;
-    TrilinosWrappers::PreconditionILU preconditioner_S;
-  };
-
-  // Precondition approximate Yosida
-  class PreconditionaYosida
- {
-  public:
-    void
-    initialize(const TrilinosWrappers::SparseMatrix &F_,
-               const TrilinosWrappers::SparseMatrix &B_,
-               const TrilinosWrappers::SparseMatrix &B_t,
-               const TrilinosWrappers::SparseMatrix &M_,
-               const double dt,
-               const TrilinosWrappers::MPI::BlockVector &sol_owned)
-    {
-      F = &F_;
-      B = &B_;
-      B_T = &B_t;
-      M = &M_;
-
-      diag_D_inv.reinit(sol_owned.block(0));
-      diag_D.reinit(sol_owned.block(0));
-      lump_M.reinit(sol_owned.block(0));
-
-
-      for (unsigned int i : diag_D.locally_owned_elements())
-      {
-        double temp = F->diag_element(i);
-        diag_D[i] = -temp;
-        diag_D_inv[i] = 1.0 / temp;
-      }
-
-
-    /*for (unsigned int i : lump_M.locally_owned_elements())
-    {
-        double temp = 0.0;
-        for (auto it = M->begin(i); it != M->end(i); ++it)
-            temp += std::abs(it->value());
-        
-        lump_M[i] = dt / temp;
-    }*/
-          for (unsigned int i : diag_D.locally_owned_elements())
-      {
-        double temp = M->diag_element(i);
-        lump_M[i] = dt / temp;
-      }
-
-      B->mmult(S, *B_T, lump_M);
-
-      preconditionerF.initialize(*F);
-      preconditionerS.initialize(S);
-    }
-    void
-    vmult(TrilinosWrappers::MPI::BlockVector &dst,
-          const TrilinosWrappers::MPI::BlockVector &src) const
-    {
-
-      const unsigned int maxiter = 100000;
-      const double tol = 1e-2;
-      SolverControl solver_F(maxiter, tol * src.block(0).l2_norm());
-      SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres(solver_F);
-
-      tmp.reinit(src.block(1));
-      
-      solver_gmres.solve(*F, dst.block(0), src.block(0), preconditionerF);
-
-      dst.block(1) = src.block(1);
-      B->vmult(dst.block(1), dst.block(0));
-      dst.block(1).sadd(-1.0, src.block(1));
-      tmp = dst.block(1);
-
-      SolverControl solver_S(maxiter, tol * tmp.l2_norm());
-      SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
-      solver_cg.solve(S, dst.block(1), tmp, preconditionerS);
-      dst.block(0).scale(diag_D);
-      dst.block(1) *= 1.0 ;
-      B_T->vmult_add(dst.block(0), dst.block(1));
-      dst.block(0).scale(diag_D_inv);
-    }
-
-  protected:
-    const TrilinosWrappers::SparseMatrix *F;
-    const TrilinosWrappers::SparseMatrix *B_T;
-    const TrilinosWrappers::SparseMatrix *B;
-    const TrilinosWrappers::SparseMatrix *M;
-    TrilinosWrappers::SparseMatrix S;
-
-    TrilinosWrappers::PreconditionILU preconditionerF;
-    TrilinosWrappers::PreconditionILU preconditionerS;
-
-    TrilinosWrappers::MPI::Vector diag_D;
-    TrilinosWrappers::MPI::Vector lump_M;
-    TrilinosWrappers::MPI::Vector diag_D_inv;
-    mutable TrilinosWrappers::MPI::Vector tmp;
-    mutable TrilinosWrappers::MPI::Vector tmp2;
-  };
-
-
   // Constructor.
   NavierStokes(const std::string &mesh_file_name_,
                const unsigned int &degree_velocity_,
@@ -684,10 +611,10 @@ public:
   void
   solve();
 
-  std::vector<double> vec_drag;
-  std::vector<double> vec_lift;
-  std::vector<double> vec_drag_coeff;
-  std::vector<double> vec_lift_coeff;
+  // Compute the error.
+  double
+  compute_error(const VectorTools::NormType &norm_type);
+
 
   std::vector<double> time_prec;
   std::vector<double> time_solve;
@@ -709,8 +636,6 @@ protected:
   void
   output(const unsigned int &time_step) const;
 
-  void
-  compute_forces();
 
   // MPI parallel. /////////////////////////////////////////////////////////////
 
@@ -726,7 +651,7 @@ protected:
   // Problem definition. ///////////////////////////////////////////////////////
 
   // Kinematic viscosity [m2/s].
-  const double nu = 1e-3;
+  const double nu = 1e-2;
 
   // Density
   const double rho = 1.;
@@ -734,8 +659,7 @@ protected:
   // Forcing term.
   ForcingTerm forcing_term;
 
-  // Inlet velocity.
-  InletVelocity inlet_velocity;
+
 
   // Final time.
   const double T;
@@ -756,6 +680,9 @@ protected:
 
   // TIme step.
   const double deltat;
+
+  ExactSolution exact_solution;
+
 
   // g(x).
   FunctionG function_g;
@@ -805,7 +732,6 @@ protected:
   TrilinosWrappers::BlockSparseMatrix mass_matrix;
   // C(u_k)
   TrilinosWrappers::BlockSparseMatrix convection_matrix;
-
 
   // Pressure mass matrix, needed for preconditioning. We use a block matrix for
   // convenience, but in practice we only look at the pressure-pressure block.
