@@ -16,4 +16,7 @@ To compile and run the project these are the steps that need to be followed:
 + create and move inside build: `mkdir build` `cd build`
 + load the dealii modules:`module load gcc-glibc dealii`
 + execute: `cmake ..` `make`
-+ run 2D problem: `./navier_stokes2D`
++ run :
+        +  `./navier_stokes2D`
+        +  `./navier_stokes3D`
+        +  `./convergence`
