@@ -95,6 +95,7 @@ public:
       values[0] = 0.;
       values[1] = 0.;
       values[2] = 0.;
+      values[3] = 0.;
     }
 
     virtual double
@@ -493,6 +494,180 @@ public:
     mutable TrilinosWrappers::MPI::Vector tmp;
     mutable TrilinosWrappers::MPI::Vector tmp2;
     const double alpha = 0.5;
+  };
+
+
+
+  // Yosida preconditioner -- the inverse of Mu is replaced by the inverse of it's diagonal's elements
+  class PreconditionYosida
+  {
+  public:
+    void
+    initialize(const TrilinosWrappers::SparseMatrix &F_,
+               const TrilinosWrappers::SparseMatrix &B_,
+               const TrilinosWrappers::SparseMatrix &B_t,
+               const TrilinosWrappers::SparseMatrix &M_,
+               const double dt,
+               const TrilinosWrappers::MPI::BlockVector &sol_owned)
+    {
+      F = &F_;
+      B = &B_;
+      B_T = &B_t;
+      M = &M_;
+      
+      diag_D_inv.reinit(sol_owned.block(0));
+
+      for (unsigned int i : diag_D_inv.locally_owned_elements())
+      {
+        double temp = M->diag_element(i);
+        diag_D_inv[i] = dt / temp;
+      }
+
+      // Create S_tilde
+      B_.mmult(S_tilde, B_t, diag_D_inv);
+    
+      // Initialize the preconditioners
+      preconditioner_F.initialize(*F);
+      preconditioner_S.initialize(S_tilde);
+    }
+    void
+    vmult(TrilinosWrappers::MPI::BlockVector &dst,
+          const TrilinosWrappers::MPI::BlockVector &src) const
+    {
+      const unsigned int maxiter = 100000;
+      const double tol = 1e-2;
+      SolverControl solver_F(maxiter, tol * src.block(0).l2_norm());
+
+      SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres(solver_F);
+
+      // Store in temporaries the results
+      TrilinosWrappers::MPI::Vector yu = src.block(0);
+      TrilinosWrappers::MPI::Vector yp = src.block(1);
+      TrilinosWrappers::MPI::Vector tmp = src.block(1);
+      TrilinosWrappers::MPI::Vector tmp2 = src.block(0);
+
+      solver_gmres.solve(*F, yu, src.block(0), preconditioner_F);
+      // F*xu -> zu
+      B->vmult(tmp, yu);
+      tmp -= src.block(1);
+      // -S*zp = xp - B*zu
+      SolverControl solver_S(maxiter, tol * tmp.l2_norm());
+      SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
+      solver_cg.solve(S_tilde, yp, tmp, preconditioner_S);
+      // pression dst = zp
+      dst.block(1) = yp;
+      B_T->vmult(dst.block(0), dst.block(1));
+      // velocity dst = zu - F^-1*B_T*yp
+      dst.block(0).scale(diag_D_inv);
+      dst.block(0) -= yu;
+      dst.block(0) *= -1.;
+
+    }
+
+  protected:
+
+    const TrilinosWrappers::SparseMatrix *F;
+    const TrilinosWrappers::SparseMatrix *B_T;
+    const TrilinosWrappers::SparseMatrix *B;
+    const TrilinosWrappers::SparseMatrix *M;
+    TrilinosWrappers::SparseMatrix S_tilde;
+    TrilinosWrappers::MPI::Vector diag_D_inv;
+    TrilinosWrappers::PreconditionILU preconditioner_F;
+    TrilinosWrappers::PreconditionILU preconditioner_S;
+  };
+
+  // Precondition approximate Yosida
+  class PreconditionaYosida
+ {
+  public:
+    void
+    initialize(const TrilinosWrappers::SparseMatrix &F_,
+               const TrilinosWrappers::SparseMatrix &B_,
+               const TrilinosWrappers::SparseMatrix &B_t,
+               const TrilinosWrappers::SparseMatrix &M_,
+               const double dt,
+               const TrilinosWrappers::MPI::BlockVector &sol_owned)
+    {
+      F = &F_;
+      B = &B_;
+      B_T = &B_t;
+      M = &M_;
+
+      diag_D_inv.reinit(sol_owned.block(0));
+      diag_D.reinit(sol_owned.block(0));
+      lump_M.reinit(sol_owned.block(0));
+
+
+      for (unsigned int i : diag_D.locally_owned_elements())
+      {
+        double temp = F->diag_element(i);
+        diag_D[i] = -temp;
+        diag_D_inv[i] = 1.0 / temp;
+      }
+
+
+    /*for (unsigned int i : lump_M.locally_owned_elements())
+    {
+        double temp = 0.0;
+        for (auto it = M->begin(i); it != M->end(i); ++it)
+            temp += std::abs(it->value());
+        
+        lump_M[i] = dt / temp;
+    }*/
+          for (unsigned int i : diag_D.locally_owned_elements())
+      {
+        double temp = M->diag_element(i);
+        lump_M[i] = dt / temp;
+      }
+
+      B->mmult(S, *B_T, lump_M);
+
+      preconditionerF.initialize(*F);
+      preconditionerS.initialize(S);
+    }
+    void
+    vmult(TrilinosWrappers::MPI::BlockVector &dst,
+          const TrilinosWrappers::MPI::BlockVector &src) const
+    {
+
+      const unsigned int maxiter = 100000;
+      const double tol = 1e-2;
+      SolverControl solver_F(maxiter, tol * src.block(0).l2_norm());
+      SolverGMRES<TrilinosWrappers::MPI::Vector> solver_gmres(solver_F);
+
+      tmp.reinit(src.block(1));
+      
+      solver_gmres.solve(*F, dst.block(0), src.block(0), preconditionerF);
+
+      dst.block(1) = src.block(1);
+      B->vmult(dst.block(1), dst.block(0));
+      dst.block(1).sadd(-1.0, src.block(1));
+      tmp = dst.block(1);
+
+      SolverControl solver_S(maxiter, tol * tmp.l2_norm());
+      SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
+      solver_cg.solve(S, dst.block(1), tmp, preconditionerS);
+      dst.block(0).scale(diag_D);
+      dst.block(1) *= 1.0 ;
+      B_T->vmult_add(dst.block(0), dst.block(1));
+      dst.block(0).scale(diag_D_inv);
+    }
+
+  protected:
+    const TrilinosWrappers::SparseMatrix *F;
+    const TrilinosWrappers::SparseMatrix *B_T;
+    const TrilinosWrappers::SparseMatrix *B;
+    const TrilinosWrappers::SparseMatrix *M;
+    TrilinosWrappers::SparseMatrix S;
+
+    TrilinosWrappers::PreconditionILU preconditionerF;
+    TrilinosWrappers::PreconditionILU preconditionerS;
+
+    TrilinosWrappers::MPI::Vector diag_D;
+    TrilinosWrappers::MPI::Vector lump_M;
+    TrilinosWrappers::MPI::Vector diag_D_inv;
+    mutable TrilinosWrappers::MPI::Vector tmp;
+    mutable TrilinosWrappers::MPI::Vector tmp2;
   };
 
   // Constructor.

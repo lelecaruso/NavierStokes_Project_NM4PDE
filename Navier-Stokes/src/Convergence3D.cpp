@@ -320,11 +320,7 @@ void NavierStokes::assemble(const double &time)
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
         // NEUMANN on y = -1 
-<<<<<<< HEAD
-        if (cell->face(f)->at_boundary() && cell->face(f)->boundary_id()==2) 
-=======
         if (cell->face(f)->at_boundary() && cell->face(f)->boundary_id()==3) 
->>>>>>> 9da681d37909a019a4f3a0743cbc9f1cc5465b3b
         {
           fe_boundary_values.reinit(cell, f);
 
@@ -374,17 +370,6 @@ void NavierStokes::assemble(const double &time)
 {
   std::map<types::global_dof_index, double> boundary_values;
 
-<<<<<<< HEAD
-  // tutte le facce hanno dirich nulla a meno della faccia y=-1
-  exact_solution.set_time(time);
-
-  //impongo D  
-  for (unsigned int i = 0; i < 6; ++i){
-    if(i!=2){//dovrebbe essere la faccia y = -1
-      boundary_functions[i] = &exact_solution;
-      }
-  }
-=======
   std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
   // tutte le facce hanno dirich nulla a meno della faccia y=-1
@@ -402,7 +387,6 @@ void NavierStokes::assemble(const double &time)
   boundary_functions[4] = &exact_solution;
   boundary_functions[5] = &exact_solution;
 
->>>>>>> 9da681d37909a019a4f3a0743cbc9f1cc5465b3b
 
   VectorTools::interpolate_boundary_values(dof_handler,
                                            boundary_functions,
@@ -519,11 +503,7 @@ void NavierStokes::assemble_time_step(const double &time)
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
     // NEUMANN on y = -1 
-<<<<<<< HEAD
-        if (cell->face(f)->at_boundary() && cell->face(f)->boundary_id()==2) 
-=======
         if (cell->face(f)->at_boundary() && cell->face(f)->boundary_id()==3) 
->>>>>>> 9da681d37909a019a4f3a0743cbc9f1cc5465b3b
         {
           fe_boundary_values.reinit(cell, f);
 
@@ -567,16 +547,6 @@ void NavierStokes::assemble_time_step(const double &time)
   std::map<types::global_dof_index, double> boundary_values;
   std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
-<<<<<<< HEAD
-  // tutte le facce hanno dirich nulla a meno della faccia y=-1
-  exact_solution.set_time(time);
-  
-  for (unsigned int i = 0; i < 6 && i!=2 ; ++i){
-      //dovrebbe essere la faccia y = -1 esclusa
-      boundary_functions[i] = &exact_solution;
-  }
-      
-=======
   
   exact_solution.set_time(time);
   
@@ -587,7 +557,6 @@ void NavierStokes::assemble_time_step(const double &time)
   boundary_functions[4] = &exact_solution;
   boundary_functions[5] = &exact_solution;
 
->>>>>>> 9da681d37909a019a4f3a0743cbc9f1cc5465b3b
   
 
   VectorTools::interpolate_boundary_values(dof_handler,

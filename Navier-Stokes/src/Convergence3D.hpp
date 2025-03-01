@@ -95,6 +95,7 @@ public:
       values[0] = 0.;
       values[1] = 0.;
       values[2] = 0.;
+      values[3] = 0.;
     }
 
     virtual double
@@ -126,6 +127,7 @@ public:
         values[0] = -a * std::exp( -nu * b * b * get_time() ) * ( std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) + std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) );
         values[1] = -a * std::exp( -nu * b * b * get_time() ) * ( std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) + std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) );
         values[2] = -a * std::exp( -nu * b * b * get_time() ) * ( std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) + std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]) );
+        // values[3] = 0;
         values[3] = pressure;
       }
       virtual double
@@ -152,6 +154,7 @@ public:
           }
           else
           {
+              //return 0;
               return pressure;
           }
         }
