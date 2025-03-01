@@ -3,10 +3,10 @@ This project aims to solve the unsteady, incompressible Navier-Stokes equations 
 
 ## Strong formulation
 $$ \begin{cases} 
-\frac{\partial \mathbf{u}}{\partial t} + (\mathbf{u} \cdot \nabla) \mathbf{u} - \nu \Delta \mathbf{u} + \nabla p = \mathbf{f} & \text{in } \Omega \, , \\ 
-\nabla \cdot \mathbf{u} = 0 & \text{in } \Omega \, , \\ 
-\mathbf{u} = \mathbf{g} & \text{on } \Gamma_{\mathrm{D}} \subset \partial \Omega \, , \\ 
-\nu \nabla \mathbf{u} \, \mathbf{n} - p \mathbf{n} = \mathbf{h} & \text{on } \Gamma_{\mathrm{N}} = \partial \Omega \backslash \Gamma_{\mathrm{D}} \, , \\ 
+\frac{\partial \mathbf{u}}{\partial t} + (\mathbf{u} \cdot \nabla) \mathbf{u} - \nu \Delta \mathbf{u} + \nabla p = \mathbf{f} & \text{in } \Omega \, \\ 
+\nabla \cdot \mathbf{u} = 0 & \text{in } \Omega \,\\ 
+\mathbf{u} = \mathbf{g} & \text{on } \Gamma_{\mathrm{D}} \subset \partial \Omega \, \\ 
+\nu \nabla \mathbf{u} \, \mathbf{n} - p \mathbf{n} = \mathbf{h} & \text{on } \Gamma_{\mathrm{N}} = \partial \Omega \backslash \Gamma_{\mathrm{D}} \,\\ 
 \mathbf{u}(t=0) = \mathbf{u}_0 & \text{in } \Omega \, . 
 \end{cases} $$
 
@@ -17,6 +17,6 @@ To compile and run the project these are the steps that need to be followed:
 + load the dealii modules: `module load gcc-glibc dealii`
 + execute: `cmake ..` `make`
 + run:
-  - `./navier_stokes2D`
-  - `./navier_stokes3D`
-  - `./convergence`
+  - 2D Flow past a cylinder  -> `./navier_stokes2D`
+  - 3D Flow past a cylinder  -> `./navier_stokes3D`
+  - 3D Ethier-Steinmann cube -> `./convergence`
