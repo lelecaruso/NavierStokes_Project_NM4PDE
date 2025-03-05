@@ -25,8 +25,11 @@ int main(int argc, char *argv[])
 
   const double T_test2 = 1.0/freq;
 */
-  const double T = 8;  //test 3
-  const double deltat = 0.01;
+  //const double T = 8;  //test 3
+  //const double deltat = 0.01;
+
+  const double T = 0.01;  
+  const double deltat = 0.001;
 
   dealii::Timer timer;
   // Start the timer
@@ -46,7 +49,7 @@ int main(int argc, char *argv[])
 
   if (rank == 0)
   {
-    const std::string output_filename = "forces_results_2D_2case.csv";
+    const std::string output_filename = "forces_results_3D_2case.csv";
     std::ofstream outputFile(output_filename);
 
     if (!outputFile.is_open())

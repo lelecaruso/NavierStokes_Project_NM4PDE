@@ -574,11 +574,12 @@ void NavierStokes::solve_time_step()
 
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
 
-  //PreconditionBlockIdentity preconditioner;
+//SIMPLE and approximate SIMPLE preconditioners
+  PreconditionSIMPLE preconditioner;
+  //PreconditionaSIMPLE preconditioner;
 
-  //PreconditionSIMPLE preconditioner;
-
-  PreconditionaSIMPLE preconditioner;
+//Yosida and approximate Yosida preconditioners
+  //PreconditionYosida preconditioner;
   //PreconditionaYosida preconditioner;
 
   pcout << " Assemblying the preconditioner... " << std::endl;
@@ -586,12 +587,16 @@ void NavierStokes::solve_time_step()
   dealii::Timer timerprec;
   timerprec.restart();
 
+//Simple and appSimple
+//alpha can be any number in (0, 1]:scaling pressure  -> protected const in hpp 
   preconditioner.initialize(
-      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), solution_owned);
+      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), solution_owned); 
 
- /*preconditioner.initialize(
-      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), mass_matrix.block(0,0) , deltat ,solution_owned);*/ //Yosida
-
+ /*
+ //Yosida and appYosida
+ preconditioner.initialize(
+      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), mass_matrix.block(0,0) ,solution_owned);  //Yosida
+  */
 
   timerprec.stop();
   pcout << "Time taken to initialize preconditioner: " << timerprec.wall_time() << " seconds" << std::endl;
