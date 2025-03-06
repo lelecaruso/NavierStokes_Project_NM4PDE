@@ -1,39 +1,40 @@
-#include "NavierStokes2D.hpp"
+#include "../include/NavierStokes2D.hpp"
+
+
 
 // Main function.
 int main(int argc, char *argv[])
 {
+    // Default test case
+  int test_case = 2;
+  std::cout << "Choose a test case for 2D Navier-Stokes:\n"
+    "1 - TEST 1 ( non implementato )\n"
+    "2 - TEST 2\n"
+    "3 - TEST 3\n---> ";
+
+  std::cin >> test_case;  // Read user input into test_case
+  if (test_case <= 1 || test_case > 3) 
+    {
+        std::cerr << "Invalid test case number. Using default (2)." << std::endl;
+        test_case = 2;
+    }
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  //const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/cilinder_2D_fine.msh";
   const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/cilinder_2D_coarse.msh";
-  //const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/mesh-square-5.msh"; // per facilita di risoluzione del sistema
 
-  //TAYLOR-HOOD 
+  // Using TAYLOR-HOOD ELEMENTS
   const unsigned int degree_velocity = 2;
   const unsigned int degree_pressure = 1;
 
-  //const double T = 24;
-
-  /*const double Re = 100.0;
-  const double A = 0.2175;
-  const double B = -5.106;
-
-  const double freq = (A + (B/Re));*/
-
-  const double T_test2 = 1.0;
-
-  //const double T = 8.0;  //test 3
+  const double T = 1.0;
   const double deltat = 0.05;
 
   dealii::Timer timer;
   // Start the timer
   timer.restart();
-
-  //NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T, deltat); //test3
-  NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T_test2, deltat);
+  NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T, deltat, test_case);
 
   problem.setup();
   problem.solve();

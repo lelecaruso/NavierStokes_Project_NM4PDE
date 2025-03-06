@@ -1,4 +1,4 @@
-#include "Convergence3D.hpp"
+#include "../include/Convergence3D.hpp"
 #include <deal.II/base/convergence_table.h>
 
 // Main function.

@@ -1,4 +1,4 @@
-#include "NavierStokes2D.hpp"
+#include "../include/NavierStokes2D.hpp"
 
 
 
@@ -378,14 +378,6 @@ void NavierStokes::assemble(const double &time)
    
 }
 
-
-/*
-  NavierStokes::previous_velocity_values.resize(n_q);
-  std::copy(current_velocity_values.begin(), current_velocity_values.end(), NavierStokes::previous_velocity_values.begin());
-*/
-  // Occorre salvare la soluzione precendente per fare ad ogni time step - precedente + C nuova
-  NavierStokes::previous_gradient_velocity_values.resize(n_q);
-  std::copy(current_velocity_gradients.begin(), current_velocity_gradients.end(), NavierStokes::previous_gradient_velocity_values.begin());
 }
 
 // Function used to assemble at time > deltat to avoid redundant computation of A,M,B
@@ -566,13 +558,6 @@ void NavierStokes::assemble_time_step(const double &time)
 }
 
 
-/*
-  NavierStokes::previous_velocity_values.resize(n_q);
-  std::copy(current_velocity_values.begin(), current_velocity_values.end(), NavierStokes::previous_velocity_values.begin());
-*/
-  // Occorre salvare la soluzione precendente per fare ad ogni time step - precedente + C nuova
-  NavierStokes::previous_gradient_velocity_values.resize(n_q);
-  std::copy(current_velocity_gradients.begin(), current_velocity_gradients.end(), NavierStokes::previous_gradient_velocity_values.begin());
 }
 
 void NavierStokes::solve_time_step()

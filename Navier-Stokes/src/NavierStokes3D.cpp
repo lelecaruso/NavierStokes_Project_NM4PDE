@@ -1,6 +1,4 @@
-#include "NavierStokes3D.hpp"
-
-
+#include "../include/NavierStokes3D.hpp"
 void NavierStokes::setup()
 {
   // Create the mesh.

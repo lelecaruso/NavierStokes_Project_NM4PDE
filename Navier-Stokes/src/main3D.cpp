@@ -1,8 +1,21 @@
-#include "NavierStokes3D.hpp"
+#include "../include/NavierStokes3D.hpp"
 
 // Main function.
 int main(int argc, char *argv[])
 {
+      // Default test case
+  int test_case = 2;
+  std::cout << "Choose a test case for 2D Navier-Stokes:\n"
+        "1 - TEST 1 ( non implementato )\n"
+        "2 - TEST 2\n"
+        "3 - TEST 3 ( non implementato )\n---> ";
+    
+  std::cin >> test_case;  // Read user input into test_case
+  if (test_case <= 1 || test_case > 3) 
+        {
+            std::cerr << "Invalid test case number. Using default (2)." << std::endl;
+            test_case = 2;
+        }
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
 
   int rank;
@@ -35,7 +48,7 @@ int main(int argc, char *argv[])
   // Start the timer
   timer.restart();
 
-  NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T, deltat); //test3
+  NavierStokes problem(mesh_file_name, degree_velocity, degree_pressure, T, deltat, test_case); //test3
 
   problem.setup();
   problem.solve();

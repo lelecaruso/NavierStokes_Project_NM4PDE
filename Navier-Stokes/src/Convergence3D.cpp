@@ -1,5 +1,4 @@
-#include "Convergence3D.hpp"
-
+#include "../include/Convergence3D.hpp"
 
 void NavierStokes::setup()
 {
