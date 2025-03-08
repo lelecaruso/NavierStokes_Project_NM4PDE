@@ -745,8 +745,7 @@ void NavierStokes::compute_forces()
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
         if (cell->face(f)->at_boundary() &&
-            (cell->face(f)->boundary_id() == 5 ||
-             cell->face(f)->boundary_id() == 6))
+            (cell->face(f)->boundary_id() == 3))
         {
           fe_face_values.reinit(cell, f);
 

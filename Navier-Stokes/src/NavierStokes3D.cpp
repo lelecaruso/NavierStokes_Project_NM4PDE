@@ -200,6 +200,7 @@ void NavierStokes::assemble(const double &time)
   std::vector<Tensor<1, dim>> current_velocity_values(n_q);
   //Store the current velocity gradient value in a tensor
   std::vector<Tensor<2,dim>> current_velocity_gradients(n_q);
+  std::vector<double> current_velocity_divergence(n_q);
   
 
   for (const auto &cell : dof_handler.active_cell_iterators())
@@ -220,6 +221,7 @@ void NavierStokes::assemble(const double &time)
     fe_values[velocity].get_function_values(solution, current_velocity_values);
     //Retrieve the current solution gradient values
     fe_values[velocity].get_function_gradients(solution, current_velocity_gradients);
+    fe_values[velocity].get_function_divergences(solution, current_velocity_divergence);
 
     for (unsigned int q = 0; q < n_q; ++q)
     {
@@ -251,7 +253,11 @@ void NavierStokes::assemble(const double &time)
           cell_convection_matrix(i, j) += current_velocity_values[q] *
                                fe_values[velocity].gradient(j, q) *
                                fe_values[velocity].value(i, q) *
-                               fe_values.JxW(q);                             
+                               fe_values.JxW(q);  
+          // Skew Symmetric Stabilization
+          cell_convection_matrix(i, j) += 0.5 * current_velocity_divergence[q] *
+                                             scalar_product(fe_values[velocity].value(i, q),
+                                             fe_values[velocity].value(j, q)) * fe_values.JxW(q);                          
           /*
           // Convective term using u_n+1 grad u_n 
            // C                    
@@ -350,7 +356,7 @@ void NavierStokes::assemble(const double &time)
   // condition alone, so that the latter "win" over the former where the two
   // boundaries touch.
   inlet_velocity.set_time(time);
-  boundary_functions[5] = &inlet_velocity;
+  boundary_functions[0] = &inlet_velocity;
   VectorTools::interpolate_boundary_values(dof_handler,
                                            boundary_functions,
                                            boundary_values,
@@ -362,9 +368,8 @@ void NavierStokes::assemble(const double &time)
   
   // tag 6,7,8,9 per il cilindro
 
-  for (unsigned int i = 1; i < 11; ++i)
-    if (i != 3 && i != 5) 
-      boundary_functions[i] = &zero_function;
+  boundary_functions[2] = &zero_function;
+  boundary_functions[3] = &zero_function;
   VectorTools::interpolate_boundary_values(dof_handler,
                                            boundary_functions,
                                            boundary_values,
@@ -415,6 +420,7 @@ void NavierStokes::assemble_time_step(const double &time)
   std::vector<Tensor<1, dim>> current_velocity_values(n_q);
   //Store the current velocity gradient value in a tensor
   std::vector<Tensor<2,dim>> current_velocity_gradients(n_q);
+  std::vector<double> current_velocity_divergence(n_q);
   
 
   for (const auto &cell : dof_handler.active_cell_iterators())
@@ -433,6 +439,7 @@ void NavierStokes::assemble_time_step(const double &time)
     fe_values[velocity].get_function_values(solution, current_velocity_values);
     //Retrieve the current solution gradient values
     fe_values[velocity].get_function_gradients(solution, current_velocity_gradients);
+    fe_values[velocity].get_function_divergences(solution, current_velocity_divergence);
 
     for (unsigned int q = 0; q < n_q; ++q)
     {
@@ -452,7 +459,10 @@ void NavierStokes::assemble_time_step(const double &time)
           cell_convection_matrix(i, j) += current_velocity_values[q] *
                                fe_values[velocity].gradient(j, q) *
                                fe_values[velocity].value(i, q) *
-                               fe_values.JxW(q);                             
+                               fe_values.JxW(q);  
+          cell_convection_matrix(i, j) += 0.5 * current_velocity_divergence[q] *
+                               scalar_product(fe_values[velocity].value(i, q),
+                               fe_values[velocity].value(j, q)) * fe_values.JxW(q);                                
           /*
           // Convective term using u_n+1 grad u_n 
            // C                    
@@ -529,7 +539,7 @@ void NavierStokes::assemble_time_step(const double &time)
   // condition alone, so that the latter "win" over the former where the two
   // boundaries touch.
   inlet_velocity.set_time(time);
-  boundary_functions[5] = &inlet_velocity;
+  boundary_functions[0] = &inlet_velocity;
   VectorTools::interpolate_boundary_values(dof_handler,
                                            boundary_functions,
                                            boundary_values,
@@ -541,9 +551,9 @@ void NavierStokes::assemble_time_step(const double &time)
   
   // tag 6,7,8,9 per il cilindro
 
-  for (unsigned int i = 1; i < 11; ++i)
-    if (i != 3 && i != 5) 
-      boundary_functions[i] = &zero_function;
+  boundary_functions[2] = &zero_function;
+  boundary_functions[3] = &zero_function;
+
   VectorTools::interpolate_boundary_values(dof_handler,
                                            boundary_functions,
                                            boundary_values,
@@ -573,11 +583,11 @@ void NavierStokes::solve_time_step()
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
 
 //SIMPLE and approximate SIMPLE preconditioners
-  PreconditionSIMPLE preconditioner;
+  //PreconditionSIMPLE preconditioner;
   //PreconditionaSIMPLE preconditioner;
 
 //Yosida and approximate Yosida preconditioners
-  //PreconditionYosida preconditioner;
+  PreconditionYosida preconditioner;
   //PreconditionaYosida preconditioner;
 
   pcout << " Assemblying the preconditioner... " << std::endl;
@@ -587,14 +597,14 @@ void NavierStokes::solve_time_step()
 
 //Simple and appSimple
 //alpha can be any number in (0, 1]:scaling pressure  -> protected const in hpp 
-  preconditioner.initialize(
+ /* preconditioner.initialize(
       system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), solution_owned); 
 
- /*
+ */
  //Yosida and appYosida
  preconditioner.initialize(
       system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), mass_matrix.block(0,0) ,solution_owned);  //Yosida
-  */
+  
 
   timerprec.stop();
   pcout << "Time taken to initialize preconditioner: " << timerprec.wall_time() << " seconds" << std::endl;
@@ -749,10 +759,8 @@ void NavierStokes::compute_forces()
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
         if (cell->face(f)->at_boundary() && //Integro sul cilindro 
-            (cell->face(f)->boundary_id() == 6 ||
-             cell->face(f)->boundary_id() == 7 ||
-             cell->face(f)->boundary_id() == 8 ||
-             cell->face(f)->boundary_id() == 9))
+            (cell->face(f)->boundary_id() == 2 ||
+             cell->face(f)->boundary_id() == 3 ))
         {
           fe_face_values.reinit(cell, f);
 

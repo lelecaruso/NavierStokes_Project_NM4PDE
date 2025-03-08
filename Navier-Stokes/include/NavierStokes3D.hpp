@@ -185,7 +185,7 @@ public:
       return (this->test_case == 1) ? 0.3 : 1.5;
     }
     
-    double u_m = getUm();
+    double u_m = 2.25;
   };
 
 

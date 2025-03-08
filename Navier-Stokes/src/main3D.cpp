@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   
-  const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/cilinder_3D_coarse.msh";
+  const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/Cylinder3D.msh";
 
   //TAYLOR-HOOD 
   const unsigned int degree_velocity = 2;
@@ -41,8 +41,8 @@ int main(int argc, char *argv[])
   //const double T = 8;  //test 3
   //const double deltat = 0.01;
 
-  const double T = 0.01;  
-  const double deltat = 0.001;
+  const double T = 5;  
+  const double deltat = 0.005;
 
   dealii::Timer timer;
   // Start the timer
