@@ -444,6 +444,7 @@ void NavierStokes::assemble_time_step(const double &time)
   //Store the current velocity gradient value in a tensor
   std::vector<Tensor<2,dim>> current_velocity_gradients(n_q);
   std::vector<double> current_velocity_divergence(n_q);
+  std::vector<double> prev_velocity_diverg(n_q);
 
       // Store the current velocity value in a tensor
   std::vector<Tensor<1, dim>> prev_velocity_values(n_q);
@@ -465,6 +466,8 @@ void NavierStokes::assemble_time_step(const double &time)
 
 
     fe_values[velocity].get_function_values(previous_solution, prev_velocity_values);
+
+    fe_values[velocity].get_function_divergences(previous_solution, prev_velocity_diverg);
 
     std::vector<Tensor<1, dim>> boundary_velocity_values(n_q_boundary);
    
@@ -489,7 +492,8 @@ void NavierStokes::assemble_time_step(const double &time)
                                fe_values[velocity].value(i, q) *
                                fe_values.JxW(q);  
           // Tamam Stabilization term 0.5 = rho / 2
-         cell_convection_matrix(i, j) += 0.5 * current_velocity_divergence[q] *
+         cell_convection_matrix(i, j) += 0.5 * 
+                              ( 2. * current_velocity_divergence[q] - prev_velocity_diverg[q] )*
                                scalar_product(fe_values[velocity].value(i, q),
                                fe_values[velocity].value(j, q)) * fe_values.JxW(q);  
 
@@ -524,8 +528,8 @@ void NavierStokes::assemble_time_step(const double &time)
             {
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
               {
-                // beta = 1, rho = 1, 0.5 = beta * rho / 2, if it still gives problems make beta higher
-                  double stab_term = 0.5 * std::min(boundary_velocity_values[q] * fe_boundary_values.normal_vector(q), 0.0) *
+                // beta = 3, rho = 1, 0.5 = beta * rho / 2, if it still gives problems make beta higher
+                  double stab_term = 1.5 * std::min(boundary_velocity_values[q] * fe_boundary_values.normal_vector(q), 0.0) *
                                      scalar_product(fe_boundary_values[velocity].value(j, q),
                                                     fe_boundary_values[velocity].value(i, q)) *
                                      fe_boundary_values.JxW(q);
