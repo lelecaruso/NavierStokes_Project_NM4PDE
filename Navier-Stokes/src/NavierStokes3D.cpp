@@ -482,29 +482,31 @@ void NavierStokes::assemble_time_step(const double &time)
         for (unsigned int j = 0; j < dofs_per_cell; ++j)
         {
 
-          // Convective term using u_n grad u_n+1 
-          cell_convection_matrix(i, j) += current_velocity_values[q] *
+          // Convective term using u_n grad u_n+1 BDF2
+          cell_convection_matrix(i, j) += 
+                              ( 2. * current_velocity_values[q] - prev_velocity_values[q] )  *
                                fe_values[velocity].gradient(j, q) *
                                fe_values[velocity].value(i, q) *
                                fe_values.JxW(q);  
+          // Tamam Stabilization term 0.5 = rho / 2
          cell_convection_matrix(i, j) += 0.5 * current_velocity_divergence[q] *
                                scalar_product(fe_values[velocity].value(i, q),
                                fe_values[velocity].value(j, q)) * fe_values.JxW(q);  
 
         }
-        // Time derivative discretization on the right hand side
+        // Time derivative discretization on the right hand side BDF2
         cell_rhs(i) += 2.0 * scalar_product(current_velocity_values[q],
                                       fe_values[velocity].value(i, q)) /
                        ( deltat ) * fe_values.JxW(q);
 
-          cell_rhs(i) -=  scalar_product(prev_velocity_values[q],
+        cell_rhs(i) -=  scalar_product(prev_velocity_values[q],
                                         fe_values[velocity].value(i, q)) /
-                        ( 2 * deltat) * fe_values.JxW(q);          
+                        ( 2. * deltat) * fe_values.JxW(q);          
 
       }
     }
 
-    // Boundary integral for Neumann BCs.
+    // BackFlow Stabilization on open boundary
     if (cell->at_boundary())
     {
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
@@ -522,6 +524,7 @@ void NavierStokes::assemble_time_step(const double &time)
             {
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
               {
+                // beta = 1, rho = 1, 0.5 = beta * rho / 2, if it still gives problems make beta higher
                   double stab_term = 0.5 * std::min(boundary_velocity_values[q] * fe_boundary_values.normal_vector(q), 0.0) *
                                      scalar_product(fe_boundary_values[velocity].value(j, q),
                                                     fe_boundary_values[velocity].value(i, q)) *
