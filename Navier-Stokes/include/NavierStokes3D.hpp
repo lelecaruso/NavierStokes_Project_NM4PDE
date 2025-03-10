@@ -13,63 +13,6 @@ public:
   // Physical dimension (3D)
   static constexpr unsigned int dim = 3;
 
-  // Function for the forcing term.
-  class ForcingTerm : public Function<dim>
-  {
-  public:
-    ForcingTerm()
-    {
-    }
-
-    virtual void
-    vector_value(const Point<dim> & /*p*/,
-                 Vector<double> &values) const override
-    {
-      for (unsigned int i = 0; i < dim - 1; ++i)
-        values[i] = 0.0;
-
-      values[dim - 1] = -g;
-    }
-
-    virtual double
-    value(const Point<dim> & /*p*/,
-          const unsigned int component = 0) const override
-    {
-      if (component == dim - 1)
-        return -g;
-      else
-        return 0.0;
-    }
-
-  protected:
-    const double g = 0.0;
-  };
-
-  // Dirichlet boundary conditions.
-  class FunctionG : public Function<dim>
-  {
-  public:
-    // Constructor.
-    FunctionG() : Function<dim>(dim + 1)
-    {
-    }
-
-    virtual void
-    vector_value(const Point<dim> & /*p*/, Vector<double> &values) const override
-    {
-      values[0] = 0.;
-      values[1] = 0.;
-      values[2] = 0.;
-      values[3] = 0.;
-    }
-
-    virtual double
-    value(const Point<dim> & /*p*/, const unsigned int /*component*/) const override
-    {
-      return 0.;
-    }
-  };
-
   // Neumann boundary conditions.
   class FunctionH : public Function<dim>
   {
@@ -86,30 +29,6 @@ public:
     }
   };
 
-  // Function for the initial condition.
-  class FunctionU0 : public Function<dim>
-  {
-  public:
-    FunctionU0()
-    {
-    }
-
-    virtual double
-    value(const Point<dim> & /*p*/, const unsigned int component) const override
-    {
-      if (component == 0)
-        return 0.;
-      else
-        return 0.;
-    }
-    virtual void
-    vector_value(const Point<dim> & /*p*/, Vector<double> &values) const override
-    {
-      values[0] = 0;
-      values[1] = 0.;
-      values[2] = 0.;
-    }
-  };
 
   // Function for inlet velocity. This actually returns an object with four
   class InletVelocity : public Function<dim>
@@ -135,7 +54,7 @@ public:
         case 2:
         default:
           // Test case 2 (default)
-          values[0] = 16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] ) * std::sin(M_PI * get_time()/8.0) / (H*H*H*H) ;
+          values[0] = 16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] ) * std::sin(M_PI * get_time() / 8.0)  / (H*H*H*H) ; 
           break;
       }
       
@@ -157,7 +76,7 @@ public:
           case 2:
           default:
             // Test case 2 (default)
-            return 16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] ) * std::sin(M_PI * get_time()/8.0) / (H*H*H*H) ; 
+            return 16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] ) * std::sin(M_PI * get_time() / 8.0)  / (H*H*H*H) ; 
         }
       }
       else
@@ -173,7 +92,7 @@ public:
           return 2.0 * u_m * std::sin(get_time()*M_PI/8.0) / 3.0;
         case 2:
         default:
-          return (4.0 * u_m * std::sin(M_PI * get_time()/8.0))  / (9.0);
+          return (4.0 * u_m )  / (9.0);
       }
     }
     
@@ -270,7 +189,7 @@ protected:
   const double rho = 1.;
 
   // Forcing term.
-  ForcingTerm forcing_term;
+  Functions::ZeroFunction<dim> forcing_term;
 
   // Inlet velocity.
   InletVelocity inlet_velocity;
@@ -296,13 +215,13 @@ protected:
   const double deltat;
 
   // g(x).
-  FunctionG function_g;
+  Functions::ZeroFunction<dim> function_g;
 
   // h(x).
   FunctionH function_h;
 
   // Initial condition.
-  FunctionU0 u_0;
+  Functions::ZeroFunction<dim> u_0;
 
   // Mesh.
   parallel::fullydistributed::Triangulation<dim> mesh;
@@ -351,6 +270,8 @@ protected:
 
   // System solution (including ghost elements).
   TrilinosWrappers::MPI::BlockVector solution;
+
+  TrilinosWrappers::MPI::BlockVector previous_solution;
 
 };
 

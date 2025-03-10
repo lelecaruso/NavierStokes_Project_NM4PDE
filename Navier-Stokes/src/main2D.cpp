@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
 
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/cilinder_2D_fine.msh";
+  const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/cilinder_2D_coarse.msh";
 
   // Using TAYLOR-HOOD ELEMENTS
   const unsigned int degree_velocity = 2;

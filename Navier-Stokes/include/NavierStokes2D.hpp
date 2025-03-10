@@ -135,7 +135,7 @@ public:
         case 2:
         default:
           // Test case 2 (default)
-          values[0] = 4.0 * u_m * p[1] * (H - p[1]) / (H*H);
+          values[0] = 4.0 * u_m * p[1] * (H - p[1]) * std::sin(M_PI * get_time() / 8) / (H*H);
           break;
       }
       
@@ -157,7 +157,7 @@ public:
           case 2:
           default:
             // Test case 2 (default)
-            return 4.0 * u_m * p[1] * (H - p[1]) / (H*H);
+            return 4.0 * u_m * p[1] * (H - p[1]) * std::sin(M_PI * get_time() / 8) / (H*H);
         }
       }
       else
@@ -185,7 +185,7 @@ public:
       return (this->test_case == 1) ? 0.3 : 1.5;
     }
     
-    double u_m = getUm();
+    double u_m = 2.5;
   };
 
 
