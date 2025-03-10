@@ -438,6 +438,8 @@ void NavierStokes::assemble_time_step(const double &time)
 
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
+  std::vector<Tensor<1, dim>> boundary_velocity_values(n_q_boundary);
+  std::vector<Tensor<1, dim>> prev_boundary_velocity_values(n_q_boundary);
 
   // Store the current velocity value in a tensor
   std::vector<Tensor<1, dim>> current_velocity_values(n_q);
@@ -469,7 +471,7 @@ void NavierStokes::assemble_time_step(const double &time)
 
     fe_values[velocity].get_function_divergences(previous_solution, prev_velocity_diverg);
 
-    std::vector<Tensor<1, dim>> boundary_velocity_values(n_q_boundary);
+
    
 
     // Retrieve the current solution values.
@@ -521,6 +523,7 @@ void NavierStokes::assemble_time_step(const double &time)
         {
           fe_boundary_values.reinit(cell, f);
           fe_boundary_values[velocity].get_function_values(solution, boundary_velocity_values);
+          fe_boundary_values[velocity].get_function_values(previous_solution, prev_boundary_velocity_values);
 
           for (unsigned int q = 0; q < n_q_boundary; ++q)
           {
@@ -528,8 +531,9 @@ void NavierStokes::assemble_time_step(const double &time)
             {
               for (unsigned int j = 0; j < dofs_per_cell; ++j)
               {
-                // beta = 3, rho = 1, 0.5 = beta * rho / 2, if it still gives problems make beta higher
-                  double stab_term = 1.5 * std::min(boundary_velocity_values[q] * fe_boundary_values.normal_vector(q), 0.0) *
+                // bdf2 for u_n on gammaN => 2*u_n|gN - u_(n-1)|gN
+                  double stab_term = 1.5 * std::min((2. * boundary_velocity_values[q] - prev_boundary_velocity_values[q] )
+                                                     * fe_boundary_values.normal_vector(q), 0.0) *
                                      scalar_product(fe_boundary_values[velocity].value(j, q),
                                                     fe_boundary_values[velocity].value(i, q)) *
                                      fe_boundary_values.JxW(q);
