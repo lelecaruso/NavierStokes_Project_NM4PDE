@@ -129,7 +129,7 @@ using namespace dealii;
                )
     {
       F = &F_;
-      B = &B_;
+      B = &B_; //Note: we are passing -(-B) = B to have the same structure as the paper 
       B_T = &B_t;
     
       neg_diag_D_inv.reinit(sol_owned.block(0));
@@ -144,11 +144,11 @@ using namespace dealii;
 
       // Create S_tilde =B * (D^-1) * B^T,
       // note: Using negative (D^-1) to create - S_tilde 
-      B->mmult(S_tilde, *B_T, neg_diag_D_inv); 
+      B->mmult(negative_S_tilde, *B_T, neg_diag_D_inv); 
 
       // Initialize the preconditioners
       preconditioner_F.initialize(*F);
-      preconditioner_S.initialize(S_tilde);
+      preconditioner_S.initialize(negative_S_tilde);
       
     }
     void
@@ -182,7 +182,7 @@ using namespace dealii;
       SolverControl solver_S(maxiter, tol * temp_1.l2_norm());
       SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
       //Note we have already constructed S-tilde as - S_tilde 
-      solver_cg.solve(S_tilde, sol1_p, temp_1, preconditioner_S);
+      solver_cg.solve(negative_S_tilde, sol1_p, temp_1, preconditioner_S);
 
       // temp_1.reinit(dst.block(0));
 
@@ -212,7 +212,7 @@ using namespace dealii;
     const TrilinosWrappers::SparseMatrix *F;
     const TrilinosWrappers::SparseMatrix *B_T;
     const TrilinosWrappers::SparseMatrix *B;
-    TrilinosWrappers::SparseMatrix S_tilde;
+    TrilinosWrappers::SparseMatrix negative_S_tilde;
     TrilinosWrappers::MPI::Vector diag_D_inv;
     TrilinosWrappers::MPI::Vector neg_diag_D_inv;
     TrilinosWrappers::PreconditionILU preconditioner_F;
@@ -330,7 +330,6 @@ using namespace dealii;
    
     const double alpha = 0.5;
   };
-
 // approximate Simple Correct
   // Yosida preconditioner -- the inverse of Mu is replaced by the inverse of it's diagonal's elements
   class PreconditionYosida
@@ -349,19 +348,21 @@ using namespace dealii;
       M = &M_;
       
       diag_D_inv.reinit(sol_owned.block(0));
+      neg_diag_D_inv.reinit(sol_owned.block(0));
 
       for (unsigned int i : diag_D_inv.locally_owned_elements())
       {
         //Note : we have assembled M as M/deltat
         diag_D_inv[i] = ( 1.0 / M->diag_element(i));  //  dt * (Mii)^-1
+        neg_diag_D_inv[i] = ( -1.0 / M->diag_element(i));  //  dt * (Mii)^-1
       }
 
-      // Create S_tilde
-      B->mmult(S_tilde, B_t, diag_D_inv);
+      // Create negative_S_tilde
+      B->mmult(negative_S_tilde, *B_T, neg_diag_D_inv);
     
       // Initialize the preconditioners
       preconditioner_F.initialize(*F);
-      preconditioner_S.initialize(S_tilde);
+      preconditioner_S.initialize(negative_S_tilde);
     }
     void
     vmult(TrilinosWrappers::MPI::BlockVector &dst,
@@ -383,13 +384,13 @@ using namespace dealii;
       // Step 1.1) yu = F^-1 * src.0
       solver_gmres.solve(*F, yu, src.block(0), preconditioner_F);
       
-      //Step 1.2) yp = S^-1(B*yu - src.1)
+      //Step 1.2) yp = negative_S_tilde^-1(src1-B*yu)
       B->vmult(tmp, yu); //tmp = B*yu
-      tmp.sadd(-1,src.block(1)); // tmp = tmp - src1
-      // S*zp = (B*yu - src(1))
+      tmp.add(-1.0, src.block(1)); // tmp = src.block(1) - tmp
+      // neg_S*yp = (src(1) - Byu)==tmp(RHS)
       SolverControl solver_S(maxiter, tol * tmp.l2_norm());
       SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
-      solver_cg.solve(S_tilde, yp, tmp, preconditioner_S);
+      solver_cg.solve(negative_S_tilde, yp, tmp, preconditioner_S);
 
       //Step 2) 
       // Step 2.1) dst1 = yp
@@ -415,8 +416,9 @@ using namespace dealii;
     const TrilinosWrappers::SparseMatrix *B_T;
     const TrilinosWrappers::SparseMatrix *B;
     const TrilinosWrappers::SparseMatrix *M;
-    TrilinosWrappers::SparseMatrix S_tilde;
+    TrilinosWrappers::SparseMatrix negative_S_tilde;
     TrilinosWrappers::MPI::Vector diag_D_inv;
+    TrilinosWrappers::MPI::Vector neg_diag_D_inv;
     TrilinosWrappers::PreconditionILU preconditioner_F;
     TrilinosWrappers::PreconditionILU preconditioner_S;
 
@@ -462,13 +464,14 @@ using namespace dealii;
             temp += std::abs(it->value());
 
         
-        lump_M[i] = 1.0 / temp; //deltat * (lump_M)^-1
+        lump_M[i] = -1.0 / temp; // - deltat * (lump_M)^-1
       }
 
-      B->mmult(S, *B_T, lump_M); // S
+      //Note: We use -lump_M to create negative S
+      B->mmult(negative_S, *B_T, lump_M); // neg_S
 
       preconditionerF.initialize(*F);
-      preconditionerS.initialize(S);
+      preconditionerS.initialize(negative_S);
     }
 
     void
@@ -494,12 +497,12 @@ using namespace dealii;
 
       //Step 2)   
        B->vmult(tmp2, tmp); //tmp(1) = B*tmp(0)
-       yp.sadd(-1.0,tmp2); // src(1) = -tmp(1) + src(1)
+       yp.sadd(-1.0,tmp2); // src(1) = -tmp(1) + src(1) (RHS)
        
-       //Step 3) true solution of S to have better accuracy, instead of S_hat
+       //Step 3) true solution of neg_S to have better accuracy, instead of neg_S_hat
       SolverControl solver_S(maxiter, tol * yp.l2_norm());
       SolverCG<TrilinosWrappers::MPI::Vector> solver_cg(solver_S);
-      solver_cg.solve(S, dst.block(1), yp, preconditionerS); //dst.block(1) updated here 
+      solver_cg.solve(negative_S, dst.block(1), yp, preconditionerS); //dst.block(1) updated here 
 
       yp = dst.block(1); //updating src(1) for next computations
 
@@ -521,7 +524,7 @@ using namespace dealii;
     const TrilinosWrappers::SparseMatrix *B_T;
     const TrilinosWrappers::SparseMatrix *B;
     const TrilinosWrappers::SparseMatrix *M;
-    TrilinosWrappers::SparseMatrix S;
+    TrilinosWrappers::SparseMatrix negative_S;
 
     TrilinosWrappers::PreconditionILU preconditionerF;
     TrilinosWrappers::PreconditionILU preconditionerS;

@@ -34,8 +34,8 @@ int main(int argc, char *argv[])
   const unsigned int degree_velocity = 2;
   const unsigned int degree_pressure = 1;
 
-  const double T = 5;  
-  const double deltat = 0.005;
+  const double T = 2;  
+  const double deltat = 0.001; 
 
   dealii::Timer timer;
   // Start the timer for solving the entire problem

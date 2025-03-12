@@ -54,7 +54,7 @@ public:
         case 2:
         default:
           // Test case 2 (default)
-          values[0] = 16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] ) * std::sin(M_PI * get_time() / 8.0)  / (H*H*H*H) ; 
+          values[0] = 16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] )  / (H*H*H*H) ; 
           break;
       }
       
@@ -76,7 +76,7 @@ public:
           case 2:
           default:
             // Test case 2 (default)
-            return 16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] ) * std::sin(M_PI * get_time() / 8.0)  / (H*H*H*H) ; 
+            return 16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] )  / (H*H*H*H) ; 
         }
       }
       else
@@ -89,7 +89,7 @@ public:
         case 1:
           return 0.0;  
         case 3:
-          return 2.0 * u_m * std::sin(get_time()*M_PI/8.0) / 3.0;
+          return 4.0 * u_m * std::sin(get_time()*M_PI/8.0) / 9.0;
         case 2:
         default:
           return (4.0 * u_m )  / (9.0);

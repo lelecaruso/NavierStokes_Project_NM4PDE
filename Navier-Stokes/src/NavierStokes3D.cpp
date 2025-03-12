@@ -633,9 +633,18 @@ void NavierStokes::solve_time_step()
  //Yosida and appYosida
  preconditioner.initialize(
       system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), mass_matrix.block(0,0) ,solution_owned);  //Yosida
-  
 
-  timerprec.stop();
+//Simple and appSimple
+//alpha can be any number in (0, 1]:scaling pressure  -> protected const in hpp 
+ /* preconditioner.initialize(
+      system_matrix.block(0, 0), negated_block, system_matrix.block(0, 1), solution_owned); 
+
+
+ //Yosida and appYosida
+ preconditioner.initialize(
+      system_matrix.block(0, 0), negated_block, system_matrix.block(0, 1), mass_matrix.block(0,0) ,solution_owned);  //Yosida
+ */  timerprec.stop();
+
   pcout << "Time taken to initialize preconditioner: " << timerprec.wall_time() << " seconds" << std::endl;
 
   time_prec.push_back(timerprec.wall_time());
@@ -737,7 +746,8 @@ void NavierStokes::solve()
     else assemble_time_step(time);
 
     solve_time_step();
-    compute_forces();
+    if( time > 0.01 )
+      compute_forces();
     output(time_step);
   }
 }
@@ -753,9 +763,11 @@ void NavierStokes::compute_forces()
                           update_values | update_gradients |
                               update_quadrature_points | update_JxW_values);
   FEFaceValues<dim> fe_face_values(*fe,
-                                   *quadrature_boundary,
-                                   update_values | update_normal_vectors |
-                                       update_JxW_values);
+                                       *quadrature_boundary,
+                                       update_values | update_quadrature_points |
+                                          update_gradients |
+                                           update_normal_vectors | 
+                                           update_JxW_values);
 
   const unsigned int n_q = quadrature->size();
   const unsigned int n_q_face = quadrature_boundary->size();                                     
@@ -764,8 +776,8 @@ void NavierStokes::compute_forces()
   FEValuesExtractors::Scalar pressure(dim);
 
   std::vector<Tensor<1, dim>> current_velocity_values(n_q);
-  std::vector<double> current_pressure_values(n_q);
-  std::vector<Tensor<2, dim>> current_velocity_gradients(n_q);
+  std::vector<double> current_pressure_values(n_q_face);
+  std::vector<Tensor<2, dim>> current_velocity_gradients(n_q_face);
 
 	double drag=0.;
 	double lift=0.;
@@ -780,24 +792,25 @@ void NavierStokes::compute_forces()
 
     fe_values.reinit(cell);
 
-    fe_values[velocity].get_function_values(solution, current_velocity_values);
-    fe_values[pressure].get_function_values(solution, current_pressure_values);
-    fe_values[velocity].get_function_gradients(solution, current_velocity_gradients);
+
 
     if (cell->at_boundary())
     {
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
-        if (cell->face(f)->at_boundary() && //Integro sul cilindro 
-            (cell->face(f)->boundary_id() == 2 ))
+        if (cell->face(f)->at_boundary() &&
+            (cell->face(f)->boundary_id() == 3 ))
         {
           fe_face_values.reinit(cell, f);
 
+          fe_face_values[pressure].get_function_values(solution, current_pressure_values);
+          fe_face_values[velocity].get_function_gradients(solution, current_velocity_gradients);
           for (unsigned int q = 0; q < n_q_face; ++q)
           {
             // Get the values
-            const double nx = fe_face_values.normal_vector(q)[0];
-            const double ny = fe_face_values.normal_vector(q)[1];
+            Tensor<1, dim> n = -fe_face_values.normal_vector(q);
+            const double nx = n[0];
+            const double ny = n[1];
 
             // Construct the tensor
             Tensor<1, dim> tangent;
@@ -805,24 +818,21 @@ void NavierStokes::compute_forces()
             tangent[1] =-nx;
 						tangent[2] = 0.;
 
-            local_drag += (rho * nu * fe_face_values.normal_vector(q) * current_velocity_gradients[q] * // This is the tangential component
-						//current_velocity_values[q] * 
-						//tangent / tangent.norm_square() * tangent 
-						( tangent / tangent.norm_square() )
-						* ny 
-						-
-						current_pressure_values[q] * nx
-						)*fe_face_values.JxW(q);
+            local_drag += (rho * nu * n * current_velocity_gradients[q] * 
+                        ( tangent / tangent.norm_square() )
+                        * ny 
+                        -
+                        current_pressure_values[q] * nx
+                        )
+                        *fe_face_values.JxW(q);
 
-            local_lift -= (rho * nu * fe_face_values.normal_vector(q) * current_velocity_gradients[q] * // This is the tangential components
-						//current_velocity_values[q] * 
-						//tangent / tangent.norm_square() * tangent 
-						( tangent / tangent.norm_square() )
-						* nx 
-						
-						+
-            current_pressure_values[q] * ny
-						)*fe_face_values.JxW(q);
+            local_lift -= (rho * nu * n * current_velocity_gradients[q] * 
+                          ( tangent / tangent.norm_square() )
+                          * nx 
+                          +
+                          current_pressure_values[q] * ny
+                          )
+                          *fe_face_values.JxW(q);
           }
         }
       }
@@ -844,3 +854,7 @@ void NavierStokes::compute_forces()
 
   pcout << "===============================================" << std::endl;
 }
+
+
+
+
