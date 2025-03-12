@@ -165,8 +165,11 @@ protected:
   output(const unsigned int &time_step) const;
 
   // Compute Lift and Drag coefficients and forces
-  void
+  std::vector<double>
   compute_forces();
+
+  void
+  compute_pressure_difference();
 
   // MPI parallel. /////////////////////////////////////////////////////////////
 

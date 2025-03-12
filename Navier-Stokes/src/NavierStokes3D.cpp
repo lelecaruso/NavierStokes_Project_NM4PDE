@@ -702,7 +702,7 @@ void NavierStokes::output(const unsigned int &time_step) const
 
   data_out.build_patches();
 
-  const std::string output_file_name = "output-stokes-3D";
+  const std::string output_file_name = "output-navier-stokes-3D";
   data_out.write_vtu_with_pvtu_record("./",
                                       output_file_name,
                                       time_step,
@@ -729,7 +729,9 @@ void NavierStokes::solve()
     output(0);
     pcout << "===============================================" << std::endl;
   }
-
+  std::vector<double> coefficients;
+  double c_D_max = -999;
+  double c_L_min = 999;
   unsigned int time_step = 0;
   double time = 0;
   while (time < T - 0.5 * deltat)
@@ -746,13 +748,25 @@ void NavierStokes::solve()
     else assemble_time_step(time);
 
     solve_time_step();
-    if( time > 0.01 )
-      compute_forces();
+    if( time == T - deltat )
+        compute_pressure_difference();
+    // Since the starting solution t0 is zero we avoid the initial high forces values
+    if ( time > 0.01)
+      {
+        coefficients = compute_forces();
+        c_D_max = std::max ( coefficients[0] , c_D_max );
+        c_L_min = std::min ( coefficients[1] , c_L_min );
+      } 
     output(time_step);
   }
+  pcout << "===============================================" << std::endl;
+  pcout << "Drag Coefficient Max ----->   " << c_D_max << std::endl;
+  pcout << std::endl;
+  pcout << "Lift Coefficient Min ----->   " << c_L_min << std::endl;
+  pcout << "===============================================" << std::endl;
 }
 
-void NavierStokes::compute_forces()
+std::vector<double> NavierStokes::compute_forces()
 {
   pcout << "===============================================" << std::endl;
   pcout << "Computing forces: " << std::endl;
@@ -849,12 +863,89 @@ void NavierStokes::compute_forces()
 
 	const double c_d=(2.*drag)/(rho*mean_v*mean_v*D*H);
 	const double c_l=(2.*lift)/(rho*mean_v*mean_v*D*H);
-
+  std::vector<double> coefficients = { c_d , c_l };
 	pcout << "Coeff:\t " << c_d << " Coeff:\t " << c_l << std::endl;
 
   pcout << "===============================================" << std::endl;
+  return coefficients;
 }
 
+
+void NavierStokes::compute_pressure_difference()
+{
+  Point<dim> p_a = { 0.45, 0.2 , 0.205 };
+  Point<dim> p_e = { 0.55, 0.2 , 0.205 };
+
+  Vector<double> solution_values1(dim + 1);
+  Vector<double> solution_values2(dim + 1);
+
+
+  bool p1_available = true;
+  bool p2_available = true;
+
+  // Attempt to evaluate pressure at p1
+  try
+  {
+      VectorTools::point_value(this->dof_handler, this->solution, p_a,
+                               solution_values1);
+  }
+  catch (const dealii::VectorTools::ExcPointNotAvailableHere &)
+  {
+      p1_available = false;
+  }
+
+  // Attempt to evaluate pressure at p2
+  try
+  {
+      VectorTools::point_value(this->dof_handler, this->solution, p_e,
+                               solution_values2);
+  }
+  catch (const dealii::VectorTools::ExcPointNotAvailableHere &)
+  {
+      p2_available = false;
+  }
+
+    // Initialize pressure variables
+    double pres_point1 = 0.0;
+    double pres_point2 = 0.0;
+
+    // Assign local pressure values if available
+    if (p1_available)
+        pres_point1 = solution_values1(dim);
+    if (p2_available)
+        pres_point2 = solution_values2(dim);
+
+    // Reduce pressure points to rank 0
+    double global_pres_point1 = 0.0;
+    double global_pres_point2 = 0.0;
+
+    // Assuming only one process has each pressure point, use MPI_MAX to gather the value
+    MPI_Reduce(&pres_point1, &global_pres_point1, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&pres_point2, &global_pres_point2, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
+    if (this->mpi_rank == 0)
+    {
+        // Compute pressure difference
+        double p_diff = global_pres_point1 - global_pres_point2;
+        std::cout << "Pressure difference (P(A) - P(B)) = " << p_diff << std::endl;
+
+        /*// Write final aggregated results to CSV
+        std::string output_path = this->get_output_directory() + "/lift_drag_output.csv";
+        std::ofstream output_file(output_path, std::ios::app);
+        if (output_file.is_open())
+        {
+            output_file << total_drag << ", " << total_lift << ", " << p_diff << "\n";
+            output_file.close();
+            std::cout << "Wrote aggregated drag/lift data to lift_drag_output.csv" << std::endl;
+        }
+        else
+        {
+            std::cerr << "Error: Unable to open lift_drag_output.csv for writing." << std::endl;
+        }*/
+    }
+    // Ensure all processes have completed the reductions
+    MPI_Barrier(MPI_COMM_WORLD);
+}
 
 
 
