@@ -129,7 +129,7 @@ using namespace dealii;
                )
     {
       F = &F_;
-      B = &B_; //Note: we are passing -(-B) = B to have the same structure as the paper 
+      B = &B_; 
       B_T = &B_t;
     
       neg_diag_D_inv.reinit(sol_owned.block(0));

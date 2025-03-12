@@ -2,7 +2,7 @@
 // without using the OpenCASCADE kernel
 
 // Mesh size parameter
-lc = 0.05; // Adjust this value to refine or coarsen the mesh
+lc = 0.025; // Adjust this value to refine or coarsen the mesh
 Printf("mesh3D-Cylinder: lc = %g", lc);
 
 // Domain dimensions

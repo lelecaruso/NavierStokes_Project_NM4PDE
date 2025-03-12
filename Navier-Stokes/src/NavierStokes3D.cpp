@@ -634,16 +634,7 @@ void NavierStokes::solve_time_step()
  preconditioner.initialize(
       system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), mass_matrix.block(0,0) ,solution_owned);  //Yosida
 
-//Simple and appSimple
-//alpha can be any number in (0, 1]:scaling pressure  -> protected const in hpp 
- /* preconditioner.initialize(
-      system_matrix.block(0, 0), negated_block, system_matrix.block(0, 1), solution_owned); 
-
-
- //Yosida and appYosida
- preconditioner.initialize(
-      system_matrix.block(0, 0), negated_block, system_matrix.block(0, 1), mass_matrix.block(0,0) ,solution_owned);  //Yosida
- */  timerprec.stop();
+ timerprec.stop();
 
   pcout << "Time taken to initialize preconditioner: " << timerprec.wall_time() << " seconds" << std::endl;
 
@@ -927,7 +918,7 @@ void NavierStokes::compute_pressure_difference()
     {
         // Compute pressure difference
         double p_diff = global_pres_point1 - global_pres_point2;
-        std::cout << "Pressure difference (P(A) - P(B)) = " << p_diff << std::endl;
+        pcout << "Pressure difference (P(A) - P(B)) = " << p_diff << std::endl;
 
         /*// Write final aggregated results to CSV
         std::string output_path = this->get_output_directory() + "/lift_drag_output.csv";
