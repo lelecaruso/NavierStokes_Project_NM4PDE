@@ -250,14 +250,12 @@ void NavierStokes::assemble(const double &time)
                                fe_values[velocity].value(j, q) /
                                deltat * fe_values.JxW(q);
 
-          // Convective term using u_n grad u_n+1 
-         
+          // Convective term using u_n grad u_n+1
           cell_convection_matrix(i, j) += current_velocity_values[q] *
                                fe_values[velocity].gradient(j, q) *
                                fe_values[velocity].value(i, q) *
                                fe_values.JxW(q);  
                                
-          
          cell_convection_matrix(i, j) += 0.1 * current_velocity_divergence[q] *
                                scalar_product(fe_values[velocity].value(i, q),
                                fe_values[velocity].value(j, q)) * fe_values.JxW(q);   
@@ -269,13 +267,13 @@ void NavierStokes::assemble(const double &time)
                                fe_values[velocity].value(i, q) *
                                fe_values.JxW(q);    */                  
 
-          // Pressure term in the momentum equation.
+          // Pressure term in the momentum equation. B
           cell_matrix(i, j) -= fe_values[velocity].divergence(i, q) *
                                fe_values[pressure].value(j, q) *
                                fe_values.JxW(q);
 
-          // Pressure term in the continuity equation.
-          cell_matrix(i, j) -= fe_values[velocity].divergence(j, q) *
+          // Pressure term in the continuity equation. BT
+          cell_matrix(i, j) += fe_values[velocity].divergence(j, q) *
                                fe_values[pressure].value(i, q) *
                                fe_values.JxW(q);
 

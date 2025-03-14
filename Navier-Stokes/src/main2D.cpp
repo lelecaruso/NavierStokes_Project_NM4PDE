@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
   const unsigned int degree_velocity = 2;
   const unsigned int degree_pressure = 1;
 
-  const double T = 5.0;
+  const double T = 8.0;
   const double deltat = 0.005;
 
   dealii::Timer timer;
