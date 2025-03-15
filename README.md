@@ -20,3 +20,24 @@ To compile and run the project these are the steps that need to be followed:
   - 2D Flow past a cylinder  -> `./navier_stokes2D`
   - 3D Flow past a cylinder  -> `./navier_stokes3D`
   - 3D Ethier-Steinmann cube -> `./convergence`
+
+Output are saved in the _/build/output_ directory
+
+### IMPORTANT COMANDS TO WORK ON THE CLUSTER
+After building the code we can submit a job using
+`sbatch run3D.sh` --- _specific for 3D test_
++ List of running jobs: 
+`squeue -u <username>`
++ Stop a specific job (you can retrieve the id by listing the jobs first):
+`scancel <job_id>`
++ Follow in real-time the output:
+`tail -f myJob.out`
++ Visualize all the output file (non real-time):
+`cat myJob.out`
+
+### MODIFY NUM OF THREADS
+If you want to modify the number of nodes and tasks per node open the script
+`nano run3D.sh` 
+and modify *ONLY* these two lines: 
+`#SBATCH --nodes=2           # number of nodes` 
+`#SBATCH --ntasks-per-node=32 # number of tasks per node` 
