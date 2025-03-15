@@ -13,9 +13,9 @@ $$ \begin{cases}
 ### COMPILE AND RUN
 To compile and run the project these are the steps that need to be followed:
 
-+ create and move inside build: `mkdir build` `cd build`
-+ load the dealii modules: `module load gcc-glibc dealii`
-+ execute: `cmake ..` `make`
++ create and move inside build:<br> `mkdir build` `cd build`
++ load the dealii modules:<br> `module load gcc-glibc dealii`
++ build: <br>`cmake ..` `make`
 + run:
   - 2D Flow past a cylinder  -> `./navier_stokes2D`
   - 3D Flow past a cylinder  -> `./navier_stokes3D`
@@ -26,18 +26,18 @@ Output are saved in the _/build/output_ directory
 ### IMPORTANT COMANDS TO WORK ON THE CLUSTER
 After building the code we can submit a job using
 `sbatch run3D.sh` --- _specific for 3D test_
-+ List of running jobs: 
++ List of running jobs: <br>
 `squeue -u <username>`
-+ Stop a specific job (you can retrieve the id by listing the jobs first):
++ Stop a specific job (you can retrieve the id by listing the jobs first):<br>
 `scancel <job_id>`
-+ Follow in real-time the output:
++ Follow in real-time the output:<br>
 `tail -f myJob.out`
-+ Visualize all the output file (non real-time):
++ Visualize all the output file (non real-time):<br>
 `cat myJob.out`
 
 ### MODIFY NUM OF THREADS
-If you want to modify the number of nodes and tasks per node open the script
-`nano run3D.sh` 
-and modify *ONLY* these two lines: 
-`#SBATCH --nodes=2           # number of nodes` 
+If you want to modify the number of nodes and tasks per node open the script <br>
+`nano run3D.sh` <br>
+and modify *ONLY* these two lines: <br>
+`#SBATCH --nodes=2           # number of nodes` <br>
 `#SBATCH --ntasks-per-node=32 # number of tasks per node` 
