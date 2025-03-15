@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.12.0)
 project(navier_stokes LANGUAGES CXX C)
+find_package(MPI REQUIRED)
 
 include(cmake-common.cmake)
 

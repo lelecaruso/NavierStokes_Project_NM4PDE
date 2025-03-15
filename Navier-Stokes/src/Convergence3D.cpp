@@ -660,7 +660,7 @@ void NavierStokes::output(const unsigned int &time_step) const
   data_out.build_patches();
 
   const std::string output_file_name = "convergence-3D";
-  data_out.write_vtu_with_pvtu_record("./",
+  data_out.write_vtu_with_pvtu_record("./output",
                                       output_file_name,
                                       time_step,
                                       MPI_COMM_WORLD);

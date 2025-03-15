@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
   
       // Default test case
   int test_case = 2;
-  if( rank == 0)
+ /* if( rank == 0)
   {
     std::cout << "Choose a test case for 2D Navier-Stokes:\n"
           "1 - TEST 1 ( non implementato )\n"
@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
               std::cerr << "Invalid test case number. Using default (2)." << std::endl;
               test_case = 2;
           }    
-  }
+  }*/
 
   MPI_Bcast(&test_case, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
