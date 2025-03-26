@@ -584,27 +584,27 @@ void NavierStokes::solve_time_step()
 
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
 
-  //PreconditionBlockIdentity preconditioner;
-  //PreconditionSIMPLE preconditioner;
-  PreconditionaSIMPLE preconditioner;
-  //PreconditionaYosida preconditioner;
+  
+  //PreconditionSIMPLE preconditioner; //fastest  but higher GMRES iter on averahe
+  //PreconditionaSIMPLE preconditioner; // too slow to solve the actual system but fast to be assembled
+  PreconditionYosida preconditioner; // little slower but less GMRES iter on average
 
   pcout << " Assemblying the preconditioner... " << std::endl;
 
   dealii::Timer timerprec;
   timerprec.restart();
-     preconditioner.initialize(
-      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), solution_owned);
 
-  /*preconditioner.initialize(
-      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), mass_matrix.block(0,0) , deltat ,solution_owned);
-
-
-   
-
+  
+  //SIMPLE
+  /*
   preconditioner.initialize(
-      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1));*/
+      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), solution_owned); 
+  */
 
+  //YOSIDA
+  
+ preconditioner.initialize(
+      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), mass_matrix.block(0,0) ,solution_owned); 
 
   timerprec.stop();
   pcout << "Time taken to initialize preconditioner: " << timerprec.wall_time() << " seconds" << std::endl;
@@ -660,8 +660,8 @@ void NavierStokes::output(const unsigned int &time_step) const
 
   data_out.build_patches();
 
-  const std::string output_file_name = "output-stokes-2D";
-  data_out.write_vtu_with_pvtu_record("./output",
+  const std::string output_file_name = "output- navier-stokes-2D";
+  data_out.write_vtu_with_pvtu_record("./",
                                       output_file_name,
                                       time_step,
                                       MPI_COMM_WORLD);
@@ -687,7 +687,9 @@ void NavierStokes::solve()
     output(0);
     pcout << "===============================================" << std::endl;
   }
-
+  std::vector<double> coefficients;
+  double c_D_max = -999;
+  double c_L_min = 999;
   unsigned int time_step = 0;
   double time = 0;
   while (time < T - 0.5 * deltat)
@@ -706,37 +708,55 @@ void NavierStokes::solve()
     else assemble_time_step(time);
 
     solve_time_step();
-    compute_forces();
+    if( time == T - deltat )
+        compute_pressure_difference();
+    // Since the starting solution t0 is zero we avoid the initial high forces values
+    if ( time > 0.1) //da prove empiriche dovremmo stamparli solo dopo T = 1 per avere valori sensati col benchmark.
+      {
+        coefficients = compute_forces();
+        c_D_max = std::max ( coefficients[0] , c_D_max );
+        c_L_min = std::min ( coefficients[1] , c_L_min );
+      } 
     output(time_step);
   }
+  pcout << "===============================================" << std::endl;
+  pcout << "Drag Coefficient Max ----->   " << c_D_max << std::endl;
+  pcout << std::endl;
+  pcout << "Lift Coefficient Min ----->   " << c_L_min << std::endl;
+  pcout << "===============================================" << std::endl;
 }
+  
 
-void NavierStokes::compute_forces()
+
+std::vector<double> NavierStokes::compute_forces()
 {
   pcout << "===============================================" << std::endl;
   pcout << "Computing forces: " << std::endl;
 
-  const unsigned int n_q = quadrature->size();
-  const unsigned int n_q_face = quadrature_boundary->size();
 
   FEValues<dim> fe_values(*fe,
                           *quadrature,
                           update_values | update_gradients |
                               update_quadrature_points | update_JxW_values);
   FEFaceValues<dim> fe_face_values(*fe,
-                                   *quadrature_boundary,
-                                   update_values | update_normal_vectors |
-                                       update_JxW_values);
+                                       *quadrature_boundary,
+                                       update_values | update_quadrature_points |
+                                          update_gradients |
+                                           update_normal_vectors | 
+                                           update_JxW_values);
+
+  const unsigned int n_q = quadrature->size();
+  const unsigned int n_q_face = quadrature_boundary->size();                                     
 
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
 
-  drag = 0.0;
-  lift = 0.0;
-
   std::vector<Tensor<1, dim>> current_velocity_values(n_q);
-  std::vector<double> current_pressure_values(n_q);
-  std::vector<Tensor<2, dim>> current_velocity_gradients(n_q);
+  std::vector<double> current_pressure_values(n_q_face);
+  std::vector<Tensor<2, dim>> current_velocity_gradients(n_q_face);
+
+	double drag=0.;
+	double lift=0.;
 
   double local_lift = 0.0;
   double local_drag = 0.0;
@@ -748,37 +768,46 @@ void NavierStokes::compute_forces()
 
     fe_values.reinit(cell);
 
-    fe_values[velocity].get_function_values(solution, current_velocity_values);
-    fe_values[pressure].get_function_values(solution, current_pressure_values);
-    fe_values[velocity].get_function_gradients(solution, current_velocity_gradients);
-
     if (cell->at_boundary())
     {
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
         if (cell->face(f)->at_boundary() &&
-            (cell->face(f)->boundary_id() == 3))
+            (
+              (cell->face(f)->boundary_id() == 5 ) || (cell->face(f)->boundary_id() == 6 ) //Cylnder
+            )
+          )
         {
           fe_face_values.reinit(cell, f);
 
+          fe_face_values[pressure].get_function_values(solution, current_pressure_values);
+          fe_face_values[velocity].get_function_gradients(solution, current_velocity_gradients);
           for (unsigned int q = 0; q < n_q_face; ++q)
           {
             // Get the values
-            const double nx = fe_face_values.normal_vector(q)[0];
-            const double ny = fe_face_values.normal_vector(q)[1];
+            Tensor<1, dim> n = -fe_face_values.normal_vector(q);
+            const double nx = n[0];
+            const double ny = n[1];
 
-            // Construct the tensor
             Tensor<1, dim> tangent;
             tangent[0] = ny;
             tangent[1] = -nx;
 
-            local_drag += (rho * nu * fe_face_values.normal_vector(q) * current_velocity_gradients[q] * tangent * ny -
-                           current_pressure_values[q] * nx) *
-                          fe_face_values.JxW(q);
+            local_drag += (rho * nu * n * current_velocity_gradients[q] * 
+                        ( tangent / tangent.norm_square() )
+                        * ny 
+                        -
+                        current_pressure_values[q] * nx
+                        )
+                        *fe_face_values.JxW(q);
 
-            local_lift += (rho * nu * fe_face_values.normal_vector(q) * current_velocity_gradients[q] * tangent * nx +
-                           current_pressure_values[q] * ny) *
-                          fe_face_values.JxW(q);
+            local_lift -= (rho * nu * n * current_velocity_gradients[q] * 
+                          ( tangent / tangent.norm_square() )
+                          * nx 
+                          +
+                          current_pressure_values[q] * ny
+                          )
+                          *fe_face_values.JxW(q);
           }
         }
       }
@@ -787,18 +816,98 @@ void NavierStokes::compute_forces()
   drag = Utilities::MPI::sum(local_drag, MPI_COMM_WORLD);
   lift = Utilities::MPI::sum(local_lift, MPI_COMM_WORLD);
   pcout << "Drag :\t " << drag << " Lift :\t " << lift << std::endl;
-  // The mean velocity is defined as 2U(0,H/2,t)/3
-  // This is in the case 2D-2 unsteady
-  double mean_v = inlet_velocity.getMeanVelocity();
-  vec_drag.push_back(drag);
-  vec_lift.push_back(lift);
-  vec_drag_coeff.push_back((2. * drag) / (mean_v * mean_v * rho * 0.1)); //NO pigreco
-  vec_lift_coeff.push_back((- 2. * lift) / (mean_v * mean_v * rho * 0.1)); //NO pigreco e segno meno per avere segno opposto della Forza di Lift
-  
-  pcout
-      << "Coeff D:\t " << (2. * drag) / (mean_v * mean_v * rho * 0.1) //No pigreco
-      << " Coeff L:\t " << (- 2. * lift) / (mean_v * mean_v * rho * 0.1) << std::endl; //No pigreco e segno meno
+  // The meam velocity is defined as 2U(0,H/2,t)/3
+  // This is in the case 2D
+  const double mean_v = inlet_velocity.getMeanVelocity();
+	const double D= 0.1;
+	const double H=0.41;
 
+	const double c_d=(2.*drag)/(rho*mean_v*mean_v*D*H);
+	const double c_l=(2.*lift)/(rho*mean_v*mean_v*D*H);
+  std::vector<double> coefficients = { c_d , c_l };
+	pcout << "Coeff:\t " << c_d << " Coeff:\t " << c_l << std::endl;
 
   pcout << "===============================================" << std::endl;
+  return coefficients;
 }
+
+
+void NavierStokes::compute_pressure_difference()
+{
+  Point<dim> p_a = { 0.45, 0.2 };
+  Point<dim> p_e = { 0.55, 0.2 };
+
+  Vector<double> solution_values1(dim + 1);
+  Vector<double> solution_values2(dim + 1);
+
+
+  bool p1_available = true;
+  bool p2_available = true;
+
+  // Attempt to evaluate pressure at p1
+  try
+  {
+      VectorTools::point_value(this->dof_handler, this->solution, p_a,
+                               solution_values1);
+  }
+  catch (const dealii::VectorTools::ExcPointNotAvailableHere &)
+  {
+      p1_available = false;
+  }
+
+  // Attempt to evaluate pressure at p2
+  try
+  {
+      VectorTools::point_value(this->dof_handler, this->solution, p_e,
+                               solution_values2);
+  }
+  catch (const dealii::VectorTools::ExcPointNotAvailableHere &)
+  {
+      p2_available = false;
+  }
+
+    // Initialize pressure variables
+    double pres_point1 = 0.0;
+    double pres_point2 = 0.0;
+
+    // Assign local pressure values if available
+    if (p1_available)
+        pres_point1 = solution_values1(dim);
+    if (p2_available)
+        pres_point2 = solution_values2(dim);
+
+    // Reduce pressure points to rank 0
+    double global_pres_point1 = 0.0;
+    double global_pres_point2 = 0.0;
+
+    // Assuming only one process has each pressure point, use MPI_MAX to gather the value
+    MPI_Reduce(&pres_point1, &global_pres_point1, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&pres_point2, &global_pres_point2, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
+    if (this->mpi_rank == 0)
+    {
+        // Compute pressure difference
+        double p_diff = global_pres_point1 - global_pres_point2;
+        pcout << "Pressure difference (P(A) - P(B)) = " << p_diff << std::endl;
+
+        /*// Write final aggregated results to CSV
+        std::string output_path = this->get_output_directory() + "/lift_drag_output.csv";
+        std::ofstream output_file(output_path, std::ios::app);
+        if (output_file.is_open())
+        {
+            output_file << total_drag << ", " << total_lift << ", " << p_diff << "\n";
+            output_file.close();
+            std::cout << "Wrote aggregated drag/lift data to lift_drag_output.csv" << std::endl;
+        }
+        else
+        {
+            std::cerr << "Error: Unable to open lift_drag_output.csv for writing." << std::endl;
+        }*/
+    }
+    // Ensure all processes have completed the reductions
+    MPI_Barrier(MPI_COMM_WORLD);
+}
+
+
+
+

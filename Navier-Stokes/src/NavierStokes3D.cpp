@@ -266,7 +266,7 @@ void NavierStokes::assemble(const double &time)
               fe_values.JxW(q);
 
           // Time derivative discretization.
-          cell_mass_matrix(i, j) +=  1.5 * fe_values[velocity].value(i, q) *
+          cell_mass_matrix(i, j) +=  1. * fe_values[velocity].value(i, q) *
                                fe_values[velocity].value(j, q) /
                                ( deltat ) * fe_values.JxW(q);
 
@@ -428,11 +428,17 @@ void NavierStokes::assemble_time_step(const double &time)
 
 
   FullMatrix<double> cell_convection_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> cell_mass_matrix(dofs_per_cell, dofs_per_cell);
   Vector<double> cell_rhs(dofs_per_cell);
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
   system_matrix.add(-1., convection_matrix);
+  if( time == 2*deltat)
+  {
+    system_matrix.add(-1., mass_matrix);
+    pcout << "Reinitialize Mass Matrix for BDF2" << std::endl;
+  }
   convection_matrix = 0.0;
   system_rhs = 0.0;
 
@@ -462,7 +468,7 @@ void NavierStokes::assemble_time_step(const double &time)
 
     fe_values.reinit(cell);
 
-
+    cell_mass_matrix = 0.0;
     cell_convection_matrix = 0.0;
     cell_rhs = 0.0;
 
@@ -486,7 +492,12 @@ void NavierStokes::assemble_time_step(const double &time)
       {
         for (unsigned int j = 0; j < dofs_per_cell; ++j)
         {
-
+          if ( time == 2*deltat)
+          {
+            cell_mass_matrix(i,j) +=  .5 * fe_values[velocity].value(i, q) *
+                                          fe_values[velocity].value(j, q) /
+                                          ( deltat ) * fe_values.JxW(q);
+          }
           // Convective term using u_n grad u_n+1 BDF2
           cell_convection_matrix(i, j) += 
                               ( 2. * current_velocity_values[q] - prev_velocity_values[q] )  *
@@ -547,12 +558,18 @@ void NavierStokes::assemble_time_step(const double &time)
 
     cell->get_dof_indices(dof_indices);
 
-    
+    if( time == 2*deltat)
+    {
+      mass_matrix.add(dof_indices, cell_mass_matrix);
+    }
     convection_matrix.add(dof_indices, cell_convection_matrix);
     system_rhs.add(dof_indices, cell_rhs);
   }
-
-  
+  if( time == 2*deltat)
+  {
+    mass_matrix.compress(VectorOperation::add);
+    system_matrix.add(1., mass_matrix);
+  }
   convection_matrix.compress(VectorOperation::add);
   system_rhs.compress(VectorOperation::add);
   pressure_mass.compress(VectorOperation::add);
@@ -613,11 +630,11 @@ void NavierStokes::solve_time_step()
 
 //SIMPLE and approximate SIMPLE preconditioners
   //PreconditionSIMPLE preconditioner;
-  //PreconditionaSIMPLE preconditioner;
+  PreconditionaSIMPLE preconditioner;
 
 //Yosida and approximate Yosida preconditioners
-  PreconditionYosida preconditioner;
-  //PreconditionaYosida preconditioner;
+//  PreconditionYosida preconditioner;
+//PreconditionaYosida preconditioner;
 
   pcout << " Assemblying the preconditioner... " << std::endl;
 
@@ -626,14 +643,14 @@ void NavierStokes::solve_time_step()
 
 //Simple and appSimple
 //alpha can be any number in (0, 1]:scaling pressure  -> protected const in hpp 
- /* preconditioner.initialize(
+  preconditioner.initialize(
       system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), solution_owned); 
 
- */
+ /*
  //Yosida and appYosida
  preconditioner.initialize(
       system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), mass_matrix.block(0,0) ,solution_owned);  //Yosida
-
+*/
  timerprec.stop();
 
   pcout << "Time taken to initialize preconditioner: " << timerprec.wall_time() << " seconds" << std::endl;
@@ -694,7 +711,7 @@ void NavierStokes::output(const unsigned int &time_step) const
   data_out.build_patches();
 
   const std::string output_file_name = "output-navier-stokes-3D";
-  data_out.write_vtu_with_pvtu_record("./output",
+  data_out.write_vtu_with_pvtu_record("./output3D/",
                                       output_file_name,
                                       time_step,
                                       MPI_COMM_WORLD);
@@ -748,7 +765,7 @@ void NavierStokes::solve()
         c_D_max = std::max ( coefficients[0] , c_D_max );
         c_L_min = std::min ( coefficients[1] , c_L_min );
       } 
-    output(time_step);
+    //output(time_step);
   }
   pcout << "===============================================" << std::endl;
   pcout << "Drag Coefficient Max ----->   " << c_D_max << std::endl;

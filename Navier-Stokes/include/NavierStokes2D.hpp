@@ -157,7 +157,7 @@ public:
           case 2:
           default:
             // Test case 2 (default)
-            return 4.0 * u_m * p[1] * (H - p[1]) * std::sin(M_PI * get_time() / 8) / (H*H);
+            return 4.0 * u_m * p[1] * (H - p[1]) * std::sin(M_PI * get_time() / 8.0) / (H*H);
         }
       }
       else
@@ -242,9 +242,12 @@ protected:
   void
   output(const unsigned int &time_step) const;
 
-  // Compute Lift and Drag coefficients and forces
-  void
+//Compute drag and lift
+ std::vector<double>
   compute_forces();
+
+  void
+  compute_pressure_difference();
 
   // MPI parallel. /////////////////////////////////////////////////////////////
   

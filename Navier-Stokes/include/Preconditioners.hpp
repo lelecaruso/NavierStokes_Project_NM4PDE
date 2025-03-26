@@ -262,52 +262,49 @@ using namespace dealii;
       const unsigned int maxit = 10000;
       const double tol = 1e-2;
 
-      //devo definire due tmp non posso fare block 
-
 
        // Prepare 2 temporary vectors to hold intermediate data.
         tmp.reinit(src); 
 
-        // --- Step 1 ---
+        // 1 
         // Solve for the primary (first block) variable.
         // This computes an approximate inverse of C applied to the first part of src.
         SolverControl solver_control_F(maxit, tol * src.block(0).l2_norm());
         SolverGMRES<TrilinosWrappers::MPI::Vector> solver_F(solver_control_F);
         solver_F.solve(*F, dst.block(0), src.block(0), preconditioner_F);
 
-        // --- Step 2 ---
+        // 2 
         // Copy the secondary part of src into a temporary container.
         // Then update this temporary vector by incorporating the effect of -B acting
-        // on the primary variable obtained in Step 1.
-  
+        // on the primary variable obtained i 1.
         B->vmult(dst.block(1), dst.block(0));
         dst.block(1).sadd(-1.0, src.block(1)); // tmp.block(1) = -B * dst.block(0) + src.block(1)
         tmp.block(1) = dst.block(1);
 
-        // --- Step 3 ---
+        // 3 
         // Solve the system with the approximate Schur complement.
         // This computes the secondary variable by inverting negS_matrix.
         SolverControl solver_control_S(maxit, tol * tmp.block(1).l2_norm());
         SolverGMRES<TrilinosWrappers::MPI::Vector> solver_S(solver_control_S);
         solver_S.solve(neg_S, dst.block(1), tmp.block(1), preconditioner_S);
 
-        // --- Step 4 ---
+        // 4 
         // Scale the primary component by the original diagonal entries.
         // This reintroduces the proper weighting based on C's diagonal.
         dst.block(0).scale(diag_D);
 
-        // --- Step 5 ---
+        // 5 
         // Adjust the secondary component by applying the damping factor.
         dst.block(1) /= alpha;
 
-        // --- Step 6 ---
+        // 6 
         // Refine the primary component: subtract a correction term computed by
         // multiplying the secondary variable with B^T and then scaling with the inverse
         // of the diagonal entries.
         B_T->vmult(tmp.block(0), dst.block(1));
         dst.block(0) -= tmp.block(0);
         
-        // --- Step 7 ---
+        // 7 
         // Finalize the update of the primary component by scaling it with Dinv.
         dst.block(0).scale(diag_D_inv);
       
@@ -353,8 +350,8 @@ using namespace dealii;
       for (unsigned int i : diag_D_inv.locally_owned_elements())
       {
         //Note : we have assembled M as M/deltat
-        diag_D_inv[i] = ( 1.0 / M->diag_element(i));  //  dt * (Mii)^-1
-        neg_diag_D_inv[i] = ( -1.0 / M->diag_element(i));  //  dt * (Mii)^-1
+        //diag_D_inv[i] = ( 1.0 / M->diag_element(i));  // 2 / 3 * dt * (Mii)^-1
+        neg_diag_D_inv[i] = ( -1.0 / M->diag_element(i));  //  2 / 3 * dt * (Mii)^-1
       }
 
       // Create negative_S_tilde
@@ -425,8 +422,8 @@ using namespace dealii;
     mutable TrilinosWrappers::MPI::Vector res;
   };
 
-  //Yosida Correct
-  // Precondition approximate Yosida
+  // Precondition approximate Yosida: Why it so slow?
+  
   class PreconditionaYosida
  {
   public:
@@ -455,7 +452,7 @@ using namespace dealii;
       }
 
 
-    // build lumped_M
+    /* build lumped_M
     for (unsigned int i : lump_M.locally_owned_elements())
       {
         //Note : we have assembled M/deltat
@@ -464,7 +461,11 @@ using namespace dealii;
             temp += std::abs(it->value());
 
         
-        lump_M[i] = -1.0 / temp; // - deltat * (lump_M)^-1
+        lump_M[i] = -1.0 /  M->diag_element(i); // - deltat * (lump_M)^-1
+      }*/
+      for (unsigned int i : diag_D_inv.locally_owned_elements())
+      {
+        lump_M[i] = ( -1.0 / M->diag_element(i));  //  2 / 3 * dt * (Mii)^-1
       }
 
       //Note: We use -lump_M to create negative S
@@ -534,7 +535,7 @@ using namespace dealii;
     TrilinosWrappers::MPI::Vector diag_D_inv;
     mutable TrilinosWrappers::MPI::Vector tmp;
     mutable TrilinosWrappers::MPI::Vector tmp2;
-  }; //Correct Yosida approximate
-
-
+  }; 
+  
   #endif
+  
