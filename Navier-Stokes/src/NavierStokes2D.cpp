@@ -250,17 +250,11 @@ void NavierStokes::assemble(const double &time)
           cell_mass_matrix(i, j) +=  scalar_product(fe_values[velocity].value(i, q), fe_values[velocity].value(j, q)) / deltat * fe_values.JxW(q);
 
           // Convective term 
-          cell_convection_matrix(i, j) += current_velocity_values[q] *
-          fe_values[velocity].gradient(j, q) *
-          fe_values[velocity].value(i, q) *
-          fe_values.JxW(q);  
+          cell_convection_matrix(i, j) += scalar_product(fe_values[velocity].gradient(j, q) * current_velocity_values[q], fe_values[velocity].value(i, q)) * fe_values.JxW(q);
           
           // Temam Stabilization term
-          //cell_convection_matrix(i, j) += 0.5 * current_velocity_divergence[q] * scalar_product(fe_values[velocity].value(i, q), fe_values[velocity].value(j, q)) * fe_values.JxW(q);             
+          cell_convection_matrix(i, j) += 0.5 * current_velocity_divergence[q] * scalar_product(fe_values[velocity].value(i, q), fe_values[velocity].value(j, q)) * fe_values.JxW(q);             
           
-          /*// Convective term using u_n+1 grad u_n                 
-          cell_convection_matrix(i, j) += current_velocity_gradients[q] *fe_values[velocity].value(j, q) *fe_values[velocity].value(i, q) *fe_values.JxW(q);    */                  
-
           // Pressure term in the momentum equation.
           cell_matrix(i, j) -= fe_values[pressure].value(j, q) * fe_values[velocity].divergence(i, q) * fe_values.JxW(q);
 
@@ -392,11 +386,6 @@ void NavierStokes::assemble_time_step(const double &time)
 
   // We delete the previous Convection Matrix from the system matrix 
   system_matrix.add(-1., convection_matrix);
-  if( time == -1)
-  {
-    system_matrix.add(-1., mass_matrix);
-    pcout << "Reinitialize Mass Matrix for BDF2" << std::endl;
-  }
   convection_matrix = 0.0;
   system_rhs = 0.0;
 
@@ -450,16 +439,11 @@ void NavierStokes::assemble_time_step(const double &time)
       {
         for (unsigned int j = 0; j < dofs_per_cell; ++j)
         {
-          if ( time == -1)
-          {
-            cell_mass_matrix(i,j) +=  .5 * fe_values[velocity].value(i, q) *
-                                          fe_values[velocity].value(j, q) /
-                                          ( deltat ) * fe_values.JxW(q);
-          }
+
           // Convective term 
           cell_convection_matrix(i, j) += scalar_product(fe_values[velocity].gradient(j, q) * current_velocity_values[q], fe_values[velocity].value(i, q)) * fe_values.JxW(q);
           // Tamam Stabilization term 0.5 = rho / 2
-          //cell_convection_matrix(i, j) += 0.5 * current_velocity_divergence[q] * scalar_product(fe_values[velocity].value(i, q), fe_values[velocity].value(j, q)) * fe_values.JxW(q);
+          cell_convection_matrix(i, j) += 0.5 * current_velocity_divergence[q] * scalar_product(fe_values[velocity].value(i, q), fe_values[velocity].value(j, q)) * fe_values.JxW(q);
 
         }
         // Time derivative discretization on the right hand side BDF2
@@ -499,18 +483,8 @@ void NavierStokes::assemble_time_step(const double &time)
     }
 
     cell->get_dof_indices(dof_indices);
-
-    if( time == -1)
-    {
-      mass_matrix.add(dof_indices, cell_mass_matrix);
-    }
     convection_matrix.add(dof_indices, cell_convection_matrix);
     system_rhs.add(dof_indices, cell_rhs);
-  }
-  if( time == -1)
-  {
-    mass_matrix.compress(VectorOperation::add);
-    system_matrix.add(1., mass_matrix);
   }
   convection_matrix.compress(VectorOperation::add);
   system_rhs.compress(VectorOperation::add);
@@ -651,7 +625,7 @@ void NavierStokes::solve_time_step()
 }
 
 // Function used to save the output of the simulation
-void NavierStokes::output(const unsigned int &time_step) const
+void NavierStokes::output(const unsigned int &time_step, std::vector<double> coeff) const
 {
     pcout << "===============================================" << std::endl;
 
@@ -687,8 +661,23 @@ void NavierStokes::output(const unsigned int &time_step) const
                                         1);
 
     pcout << "Output written to " << output_file_name << std::endl;
-    pcout << "===============================================" << std::endl;    
 
+    // Write coefficients to "coeff.csv"
+    if (mpi_rank == 0) // Ensure only the root process writes to the file
+    {
+        std::ofstream coeff_file("coeff.csv", std::ios::app); // Open in append mode
+        if (coeff_file.is_open())
+        {
+            coeff_file << time_step << "," << coeff[0] << "," << coeff[1] << "\n";
+            coeff_file.close();
+        }
+        else
+        {
+            pcout << "Error: Unable to open coeff.csv for writing." << std::endl;
+        }
+    }
+
+    pcout << "===============================================" << std::endl;    
 }
 
 
@@ -706,7 +695,7 @@ void NavierStokes::solve()
     solution = solution_owned;
 
     // Output the initial solution.
-    output(0);
+    output(0, {0.0, 0.0});
     pcout << "===============================================" << std::endl;
   }
   std::vector<double> coefficients;
@@ -731,8 +720,13 @@ void NavierStokes::solve()
     solve_time_step();
     if( time == T - deltat )
         compute_pressure_difference();
+    {
+      coefficients = compute_forces();
+      c_D_max = std::max(c_D_max, coefficients[0]);
+      c_L_min = std::min(c_L_min, coefficients[1]);
+    }
     // Since the starting solution t0 is zero we avoid the initial high forces values
-    if( time_step % 1 == 0) output(time_step);
+    if( time_step % 1 == 0) output(time_step, coefficients);
   }
   pcout << "===============================================" << std::endl;
   pcout << "Drag Coefficient Max ----->   " << c_D_max << std::endl;

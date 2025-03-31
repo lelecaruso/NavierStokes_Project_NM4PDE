@@ -132,7 +132,7 @@ protected:
 
   // Output results.
   void
-  output(const unsigned int &time_step) const;
+  output(const unsigned int &time_step, std::vector<double>) const;
 
 //Compute drag and lift
  std::vector<double>

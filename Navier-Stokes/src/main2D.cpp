@@ -18,8 +18,8 @@ int main(int argc, char *argv[])
   const unsigned int degree_pressure = 1;
 
   // Time variables
-  const double T = 2.0;
-  const double deltat = 0.001;
+  const double T = 4.0;
+  const double deltat = 0.01;
 
   dealii::Timer timer;
   // Start the timer
@@ -36,8 +36,6 @@ int main(int argc, char *argv[])
   if(rank == 0)
     std::cout << "Time taken to solve ENTIRE Navier Stokes problem: " << timer.wall_time() << " seconds" << std::endl;
 
-  //Calcolare la differenza di pressione nel punto (xa, ya) = (0.15, 0.2) and (xe, ye) = (0.25, 0.2) al tempo t = 8 secondi (fine della simulazione del test 3)
-  //calcolare massimo valore di entrambi i coefficienti
 
   if (rank == 0)
   {
