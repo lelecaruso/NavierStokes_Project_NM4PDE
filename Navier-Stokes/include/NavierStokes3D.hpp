@@ -13,24 +13,7 @@ public:
   // Physical dimension (3D)
   static constexpr unsigned int dim = 3;
 
-  // Neumann boundary conditions.
-  class FunctionH : public Function<dim>
-  {
-  public:
-    // Constructor.
-    FunctionH()
-    {
-    }
-
-    virtual double
-    value(const Point<dim> & /*p*/, const unsigned int /*component*/) const override
-    {
-      return 0.;
-    }
-  };
-
-
-  // Function for inlet velocity. This actually returns an object with four
+  // Function for inlet velocity. This actually returns an object with four dimensions
   class InletVelocity : public Function<dim>
   {
   public:
@@ -44,17 +27,14 @@ public:
     {
       switch(this->test_case) {
         case 1:
-          // Test case 1
           values[0] = 0.0;  
           break;
         case 3:
-          // Test case 3
-          values[0] = 4.0 * u_m * p[1] * (H - p[1]) * std::sin(M_PI * get_time() / 8) / (H*H);
+          values[0] = 16.0 * u_m * p[1] * p[2] * ( H - p[2] ) * (H - p[1]) * std::sin(M_PI * get_time() / 8.0) / (H*H*H*H);
           break;
         case 2:
         default:
-          // Test case 2 (default)
-          values[0] = 16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] )  / (H*H*H*H) ; 
+          values[0] = 16.0 * u_m * p[1] * p[2] * ( H - p[2] ) * (H - p[1]) / (H*H*H*H);
           break;
       }
       
@@ -68,15 +48,13 @@ public:
       if (component == 0) {
         switch(this->test_case) {
           case 1:
-            // Test case 1
             return 0.0; 
           case 3:
-            // Test case 3
-            return 4.0 * u_m * p[1] * (H - p[1]) * std::sin(M_PI * get_time() / 8.0) / (H*H);
+            return 16.0 * u_m * p[1] * p[2] * ( H - p[2] ) * (H - p[1]) * std::sin(M_PI * get_time() / 8.0) / (H*H*H*H);
           case 2:
           default:
-            // Test case 2 (default)
-            return 16.0 * u_m * p[1] * p[2]* ( H - p[1] ) * ( H - p[2] )  / (H*H*H*H) ; 
+            double val = 16.0 * u_m * p[1] * p[2] * ( H - p[2] ) * (H - p[1]) / (H*H*H*H);
+            return val ; 
         }
       }
       else
@@ -99,11 +77,6 @@ public:
   protected:
     int test_case;
     double H = 0.41;
-    // Set u_m based on the test case
-    double getUm() const {
-      return (this->test_case == 1) ? 0.3 : 1.5;
-    }
-    
     double u_m = 2.25;
   };
 
@@ -221,7 +194,7 @@ protected:
   Functions::ZeroFunction<dim> function_g;
 
   // h(x).
-  FunctionH function_h;
+  Functions::ZeroFunction<dim> function_h;
 
   // Initial condition.
   Functions::ZeroFunction<dim> u_0;

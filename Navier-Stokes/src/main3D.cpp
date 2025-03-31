@@ -28,14 +28,14 @@ int main(int argc, char *argv[])
   MPI_Bcast(&test_case, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
 
-  const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/Cylinder3D.msh";
+  const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/Parallelepiped3D.msh";
 
   // Taylor-Hood elements
   const unsigned int degree_velocity = 2;
   const unsigned int degree_pressure = 1;
 
-  const double T = 2;  
-  const double deltat = 0.001; 
+  const double T = 4;  
+  const double deltat = 0.0002; 
 
   dealii::Timer timer;
   // Start the timer for solving the entire problem

@@ -19,6 +19,8 @@ using namespace dealii;
   protected:
   };
 
+
+
   class PreconditionBlockIdentity
   {
   public:
@@ -118,7 +120,7 @@ using namespace dealii;
     // - src: The input block vector to which the preconditioner is applied.
 
 
-  class PreconditionSIMPLE
+  class PreconditionSIMPLE 
   {
   public:
     void
@@ -153,7 +155,7 @@ using namespace dealii;
     }
     void
     vmult(TrilinosWrappers::MPI::BlockVector &dst,
-          const TrilinosWrappers::MPI::BlockVector &src) const
+          const TrilinosWrappers::MPI::BlockVector &src) const 
     {
       const unsigned int maxiter = 10000;
       const double tol = 1e-2;
@@ -220,7 +222,7 @@ using namespace dealii;
   };
 //Simple Correct
 //Approximate version
-  class PreconditionaSIMPLE
+  class PreconditionaSIMPLE 
   {
   public:
     void
@@ -256,55 +258,58 @@ using namespace dealii;
 
     void
     vmult(TrilinosWrappers::MPI::BlockVector &dst,
-          const TrilinosWrappers::MPI::BlockVector &src) const
+          const TrilinosWrappers::MPI::BlockVector &src) const 
     {
 
       const unsigned int maxit = 10000;
       const double tol = 1e-2;
 
+      //devo definire due tmp non posso fare block 
+
 
        // Prepare 2 temporary vectors to hold intermediate data.
         tmp.reinit(src); 
 
-        // 1 
+        // --- Step 1 ---
         // Solve for the primary (first block) variable.
         // This computes an approximate inverse of C applied to the first part of src.
         SolverControl solver_control_F(maxit, tol * src.block(0).l2_norm());
         SolverGMRES<TrilinosWrappers::MPI::Vector> solver_F(solver_control_F);
         solver_F.solve(*F, dst.block(0), src.block(0), preconditioner_F);
 
-        // 2 
+        // --- Step 2 ---
         // Copy the secondary part of src into a temporary container.
         // Then update this temporary vector by incorporating the effect of -B acting
-        // on the primary variable obtained i 1.
+        // on the primary variable obtained in Step 1.
+  
         B->vmult(dst.block(1), dst.block(0));
         dst.block(1).sadd(-1.0, src.block(1)); // tmp.block(1) = -B * dst.block(0) + src.block(1)
         tmp.block(1) = dst.block(1);
 
-        // 3 
+        // --- Step 3 ---
         // Solve the system with the approximate Schur complement.
         // This computes the secondary variable by inverting negS_matrix.
         SolverControl solver_control_S(maxit, tol * tmp.block(1).l2_norm());
         SolverGMRES<TrilinosWrappers::MPI::Vector> solver_S(solver_control_S);
         solver_S.solve(neg_S, dst.block(1), tmp.block(1), preconditioner_S);
 
-        // 4 
+        // --- Step 4 ---
         // Scale the primary component by the original diagonal entries.
         // This reintroduces the proper weighting based on C's diagonal.
         dst.block(0).scale(diag_D);
 
-        // 5 
+        // --- Step 5 ---
         // Adjust the secondary component by applying the damping factor.
         dst.block(1) /= alpha;
 
-        // 6 
+        // --- Step 6 ---
         // Refine the primary component: subtract a correction term computed by
         // multiplying the secondary variable with B^T and then scaling with the inverse
         // of the diagonal entries.
         B_T->vmult(tmp.block(0), dst.block(1));
         dst.block(0) -= tmp.block(0);
         
-        // 7 
+        // --- Step 7 ---
         // Finalize the update of the primary component by scaling it with Dinv.
         dst.block(0).scale(diag_D_inv);
       
@@ -325,11 +330,11 @@ using namespace dealii;
     TrilinosWrappers::MPI::Vector neg_diag_D_inv;
     mutable TrilinosWrappers::MPI::BlockVector tmp;
    
-    const double alpha = 0.5;
+    const double alpha = 1.;
   };
 // approximate Simple Correct
   // Yosida preconditioner -- the inverse of Mu is replaced by the inverse of it's diagonal's elements
-  class PreconditionYosida
+  class PreconditionYosida 
   {
   public:
     void
@@ -350,8 +355,8 @@ using namespace dealii;
       for (unsigned int i : diag_D_inv.locally_owned_elements())
       {
         //Note : we have assembled M as M/deltat
-        //diag_D_inv[i] = ( 1.0 / M->diag_element(i));  // 2 / 3 * dt * (Mii)^-1
-        neg_diag_D_inv[i] = ( -1.0 / M->diag_element(i));  //  2 / 3 * dt * (Mii)^-1
+        diag_D_inv[i] = ( 1.0 / M->diag_element(i));  //  dt * (Mii)^-1
+        neg_diag_D_inv[i] = ( -1.0 / M->diag_element(i));  //  dt * (Mii)^-1
       }
 
       // Create negative_S_tilde
@@ -363,7 +368,7 @@ using namespace dealii;
     }
     void
     vmult(TrilinosWrappers::MPI::BlockVector &dst,
-          const TrilinosWrappers::MPI::BlockVector &src) const
+          const TrilinosWrappers::MPI::BlockVector &src) const 
     {
       const unsigned int maxiter = 100000;
       const double tol = 1e-2;
@@ -424,7 +429,7 @@ using namespace dealii;
 
   // Precondition approximate Yosida: Why it so slow?
   
-  class PreconditionaYosida
+  class PreconditionaYosida 
  {
   public:
     void
@@ -452,7 +457,7 @@ using namespace dealii;
       }
 
 
-    /* build lumped_M
+    // build lumped_M
     for (unsigned int i : lump_M.locally_owned_elements())
       {
         //Note : we have assembled M/deltat
@@ -461,11 +466,7 @@ using namespace dealii;
             temp += std::abs(it->value());
 
         
-        lump_M[i] = -1.0 /  M->diag_element(i); // - deltat * (lump_M)^-1
-      }*/
-      for (unsigned int i : diag_D_inv.locally_owned_elements())
-      {
-        lump_M[i] = ( -1.0 / M->diag_element(i));  //  2 / 3 * dt * (Mii)^-1
+        lump_M[i] = -1.0 / temp; // - deltat * (lump_M)^-1
       }
 
       //Note: We use -lump_M to create negative S
@@ -477,7 +478,7 @@ using namespace dealii;
 
     void
     vmult(TrilinosWrappers::MPI::BlockVector &dst,
-          const TrilinosWrappers::MPI::BlockVector &src) const
+          const TrilinosWrappers::MPI::BlockVector &src) const 
     { 
       //Note : diag_D_inv = (F_hat)^-1
       tmp.reinit(src.block(0)); // block 0

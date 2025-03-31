@@ -3,35 +3,22 @@
 // Main function.
 int main(int argc, char *argv[])
 {
-    // Default test case
+  // Default test case
   int test_case = 2;
 
   Utilities::MPI::MPI_InitFinalize mpi_init(argc, argv);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  
-  if(rank ==0)
-  {
-  std::cout << "Choose a test case for 2D Navier-Stokes:\n"
-    "1 - TEST 1 ( non implementato )\n"
-    "2 - TEST 2\n"
-    "3 - TEST 3\n---> ";
-  }
 
-  std::cin >> test_case;  // Read user input into test_case
-  if (test_case <= 1 || test_case > 3) 
-    {   
-        std::cerr << "Invalid test case number. Using default (2)." << std::endl;
-        test_case = 2;
-    }
-
-  const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/cilinder_2D_fine.msh";
+  // Mesh File
+  const std::string mesh_file_name = argc > 1 ? argv[1] : "../mesh/Cylinder2D.msh";
 
   // Using TAYLOR-HOOD ELEMENTS
   const unsigned int degree_velocity = 2;
   const unsigned int degree_pressure = 1;
 
-  const double T = 8.0;
+  // Time variables
+  const double T = 2.0;
   const double deltat = 0.001;
 
   dealii::Timer timer;

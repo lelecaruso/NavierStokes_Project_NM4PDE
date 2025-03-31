@@ -1,7 +1,4 @@
 #include "../include/NavierStokes2D.hpp"
-
-
-
 void NavierStokes::setup()
 {
   // Create the mesh.
@@ -159,7 +156,11 @@ void NavierStokes::setup()
   }
 }
 
-// Function used to assemble the first time
+
+
+
+// Function used to assemble the static Matrixes, 
+// mass matrix, the stiffness matrix, the pressure matrix
 void NavierStokes::assemble(const double &time)
 {
   pcout << "===============================================" << std::endl;
@@ -198,15 +199,16 @@ void NavierStokes::assemble(const double &time)
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
 
-  // Store the current velocity value in a tensor
+  // Store the current velocity value 
   std::vector<Tensor<1, dim>> current_velocity_values(n_q);
-  //Store the current velocity gradient value in a tensor
+  //Store the current velocity gradient value 
   std::vector<Tensor<2,dim>> current_velocity_gradients(n_q);
+  // Store the current velocity divergence value 
   std::vector<double> current_velocity_divergence(n_q);
-  
 
   for (const auto &cell : dof_handler.active_cell_iterators())
   {
+
     if (!cell->is_locally_owned())
       continue;
 
@@ -221,12 +223,14 @@ void NavierStokes::assemble(const double &time)
 
     // Retrieve the current solution values.
     fe_values[velocity].get_function_values(solution, current_velocity_values);
-    //Retrieve the current solution gradient values
+    // Retrieve the current solution gradient values
     fe_values[velocity].get_function_gradients(solution, current_velocity_gradients);
+    // Retrieve the current solution divergence values
     fe_values[velocity].get_function_divergences(solution, current_velocity_divergence);
-
+    
     for (unsigned int q = 0; q < n_q; ++q)
     {
+      
       Vector<double> forcing_term_loc(dim);
       forcing_term.vector_value(fe_values.quadrature_point(q),
                                 forcing_term_loc);
@@ -238,60 +242,39 @@ void NavierStokes::assemble(const double &time)
       {
         for (unsigned int j = 0; j < dofs_per_cell; ++j)
         {
+          
           // Viscosity term.
-          cell_stiffness_matrix(i, j) +=
-              nu *
-              scalar_product(fe_values[velocity].gradient(i, q),
-                             fe_values[velocity].gradient(j, q)) *
-              fe_values.JxW(q);
+          cell_stiffness_matrix(i, j) += nu * scalar_product(fe_values[velocity].gradient(i, q), fe_values[velocity].gradient(j, q)) * fe_values.JxW(q);
 
           // Time derivative discretization.
-          cell_mass_matrix(i, j) += fe_values[velocity].value(i, q) *
-                               fe_values[velocity].value(j, q) /
-                               deltat * fe_values.JxW(q);
+          cell_mass_matrix(i, j) +=  scalar_product(fe_values[velocity].value(i, q), fe_values[velocity].value(j, q)) / deltat * fe_values.JxW(q);
 
-          // Convective term using u_n grad u_n+1
+          // Convective term 
           cell_convection_matrix(i, j) += current_velocity_values[q] *
-                               fe_values[velocity].gradient(j, q) *
-                               fe_values[velocity].value(i, q) *
-                               fe_values.JxW(q);  
-                               
-         cell_convection_matrix(i, j) += 0.1 * current_velocity_divergence[q] *
-                               scalar_product(fe_values[velocity].value(i, q),
-                               fe_values[velocity].value(j, q)) * fe_values.JxW(q);   
-          /*
-          // Convective term using u_n+1 grad u_n 
-           // C                    
-           cell_matrix(i, j) += current_velocity_gradients[q] *
-                               fe_values[velocity].value(j, q) *
-                               fe_values[velocity].value(i, q) *
-                               fe_values.JxW(q);    */                  
+          fe_values[velocity].gradient(j, q) *
+          fe_values[velocity].value(i, q) *
+          fe_values.JxW(q);  
+          
+          // Temam Stabilization term
+          //cell_convection_matrix(i, j) += 0.5 * current_velocity_divergence[q] * scalar_product(fe_values[velocity].value(i, q), fe_values[velocity].value(j, q)) * fe_values.JxW(q);             
+          
+          /*// Convective term using u_n+1 grad u_n                 
+          cell_convection_matrix(i, j) += current_velocity_gradients[q] *fe_values[velocity].value(j, q) *fe_values[velocity].value(i, q) *fe_values.JxW(q);    */                  
 
-          // Pressure term in the momentum equation. B
-          cell_matrix(i, j) -= fe_values[velocity].divergence(i, q) *
-                               fe_values[pressure].value(j, q) *
-                               fe_values.JxW(q);
+          // Pressure term in the momentum equation.
+          cell_matrix(i, j) -= fe_values[pressure].value(j, q) * fe_values[velocity].divergence(i, q) * fe_values.JxW(q);
 
-          // Pressure term in the continuity equation. BT
-          cell_matrix(i, j) += fe_values[velocity].divergence(j, q) *
-                               fe_values[pressure].value(i, q) *
-                               fe_values.JxW(q);
+          // Pressure term in the continuity equation.
+          cell_matrix(i, j) += fe_values[pressure].value(i, q) * fe_values[velocity].divergence(j, q) * fe_values.JxW(q);
 
           // Pressure mass matrix.
-          cell_pressure_mass_matrix(i, j) +=
-              fe_values[pressure].value(i, q) *
-              fe_values[pressure].value(j, q) / nu * fe_values.JxW(q);
+          cell_pressure_mass_matrix(i, j) += fe_values[pressure].value(i, q) * fe_values[pressure].value(j, q) / nu * fe_values.JxW(q);
+
         }
 
-        // Forcing term.
-        cell_rhs(i) += scalar_product(forcing_term_tensor,
-                                      fe_values[velocity].value(i, q)) *
-                       fe_values.JxW(q);
-
         // Time derivative discretization on the right hand side
-        cell_rhs(i) += scalar_product(current_velocity_values[q],
-                                      fe_values[velocity].value(i, q)) /
-                       deltat * fe_values.JxW(q);
+        cell_rhs(i) +=  scalar_product(current_velocity_values[q], fe_values[velocity].value(i, q)) * fe_values.JxW(q) / deltat;
+
       }
     }
 
@@ -318,9 +301,7 @@ void NavierStokes::assemble(const double &time)
             for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
               cell_rhs(i) +=
-                  scalar_product(neumann_loc_tensor,
-                                 fe_boundary_values[velocity].value(i, q)) *
-                  fe_boundary_values.JxW(q);
+                  scalar_product(neumann_loc_tensor, fe_boundary_values[velocity].value(i, q)) * fe_boundary_values.JxW(q);
             }
           }
         }
@@ -344,48 +325,45 @@ void NavierStokes::assemble(const double &time)
   system_rhs.compress(VectorOperation::add);
   pressure_mass.compress(VectorOperation::add);
 
+  // Create the System Matrix F = M + A + C(u_n) + B
   system_matrix.add(1., mass_matrix);
   system_matrix.add(1., convection_matrix);
   system_matrix.add(1., stiffness_matrix);
 
-// Dirichlet boundary conditions.
-{
+  // Apply Dirichlet boundary conditions.
+  {
     std::map<types::global_dof_index, double> boundary_values;
     std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
-    // Set inlet velocity at boundary ID `1`
+    // We first impose the Dirichlet boundary conditions on the Inlet.
     inlet_velocity.set_time(time);
-    boundary_functions[1] = &inlet_velocity; // Inlet boundary
+    boundary_functions[0] = &inlet_velocity;
     VectorTools::interpolate_boundary_values(dof_handler,
                                             boundary_functions,
                                             boundary_values,
-                                            ComponentMask({true, true, false}));
+                                            ComponentMask(
+                                                {true, true, false}));
 
-    // Apply no-slip condition to walls and the entire cylinder (IDs 2, 4, 6, 5)
+    // This ensure the two boundaries do not overlap.
     boundary_functions.clear();
+    Functions::ZeroFunction<dim> zero_function(dim + 1);
     
-    boundary_functions[2] = &function_g;  // Top wall (boundary ID 2)
-    
-    boundary_functions[4] = &function_g;  // Bottom wall (boundary ID 4)
-
-    boundary_functions[6] = &function_g;  // Cylinder (upper part, boundary ID 6)
-    boundary_functions[5] = &function_g;  // Cylinder (lower part, boundary ID 5)
-
+    // We then impose the Dirichlet boundary conditions on Walls and the Obstacle.
+    boundary_functions[2] = &zero_function;
+    boundary_functions[3] = &zero_function;
     VectorTools::interpolate_boundary_values(dof_handler,
                                             boundary_functions,
                                             boundary_values,
-                                            ComponentMask({true, true, false}));
+                                            ComponentMask(
+                                                {true, true, false}));
 
-    // Apply boundary values to the system (matrix, rhs, solution)
-    MatrixTools::apply_boundary_values(
-        boundary_values, system_matrix, solution, system_rhs, false);
-
-   
-}
+    MatrixTools::apply_boundary_values(boundary_values, system_matrix, solution, system_rhs, false);
+  }
 
 }
 
 // Function used to assemble at time > deltat to avoid redundant computation of A,M,B
+// assemble rhs and convection matrix
 void NavierStokes::assemble_time_step(const double &time)
 {
   pcout << "===============================================" << std::endl;
@@ -407,22 +385,41 @@ void NavierStokes::assemble_time_step(const double &time)
 
 
   FullMatrix<double> cell_convection_matrix(dofs_per_cell, dofs_per_cell);
+  FullMatrix<double> cell_mass_matrix(dofs_per_cell, dofs_per_cell);
   Vector<double> cell_rhs(dofs_per_cell);
 
   std::vector<types::global_dof_index> dof_indices(dofs_per_cell);
 
+  // We delete the previous Convection Matrix from the system matrix 
   system_matrix.add(-1., convection_matrix);
+  if( time == -1)
+  {
+    system_matrix.add(-1., mass_matrix);
+    pcout << "Reinitialize Mass Matrix for BDF2" << std::endl;
+  }
   convection_matrix = 0.0;
   system_rhs = 0.0;
 
   FEValuesExtractors::Vector velocity(0);
   FEValuesExtractors::Scalar pressure(dim);
+  std::vector<Tensor<1, dim>> boundary_velocity_values(n_q_boundary);
+  std::vector<Tensor<1, dim>> prev_boundary_velocity_values(n_q_boundary);
 
   // Store the current velocity value in a tensor
   std::vector<Tensor<1, dim>> current_velocity_values(n_q);
   //Store the current velocity gradient value in a tensor
   std::vector<Tensor<2,dim>> current_velocity_gradients(n_q);
+  // Store the current velocity divergence value in a tensor
   std::vector<double> current_velocity_divergence(n_q);
+  // Store the previous velocity value in a tensor
+  std::vector<double> prev_velocity_diverg(n_q);
+
+  // Store the current velocity value in a tensor
+  std::vector<Tensor<1, dim>> prev_velocity_values(n_q);
+  //Store the prev velocity gradient value in a tensor
+  std::vector<Tensor<2,dim>> prev_velocity_gradients(n_q);
+  // Store the prev velocity divergence value in a tensor
+  std::vector<double> prev_velocity_divergence(n_q);
   
 
   for (const auto &cell : dof_handler.active_cell_iterators())
@@ -432,88 +429,69 @@ void NavierStokes::assemble_time_step(const double &time)
 
     fe_values.reinit(cell);
 
-
+    cell_mass_matrix = 0.0;
     cell_convection_matrix = 0.0;
     cell_rhs = 0.0;
 
-
+    // Retrieve the previous solution values.
+    fe_values[velocity].get_function_values(previous_solution, prev_velocity_values);
+    // Retrieve the previous solution gradient values
+    fe_values[velocity].get_function_divergences(previous_solution, prev_velocity_diverg);
     // Retrieve the current solution values.
     fe_values[velocity].get_function_values(solution, current_velocity_values);
     //Retrieve the current solution gradient values
     fe_values[velocity].get_function_gradients(solution, current_velocity_gradients);
+    // Retrieve the current solution divergence values
     fe_values[velocity].get_function_divergences(solution, current_velocity_divergence);
-
 
     for (unsigned int q = 0; q < n_q; ++q)
     {
-      Vector<double> forcing_term_loc(dim);
-      forcing_term.vector_value(fe_values.quadrature_point(q),
-                                forcing_term_loc);
-      Tensor<1, dim> forcing_term_tensor;
-      for (unsigned int d = 0; d < dim; ++d)
-        forcing_term_tensor[d] = forcing_term_loc[d];
-
       for (unsigned int i = 0; i < dofs_per_cell; ++i)
       {
         for (unsigned int j = 0; j < dofs_per_cell; ++j)
         {
+          if ( time == -1)
+          {
+            cell_mass_matrix(i,j) +=  .5 * fe_values[velocity].value(i, q) *
+                                          fe_values[velocity].value(j, q) /
+                                          ( deltat ) * fe_values.JxW(q);
+          }
+          // Convective term 
+          cell_convection_matrix(i, j) += scalar_product(fe_values[velocity].gradient(j, q) * current_velocity_values[q], fe_values[velocity].value(i, q)) * fe_values.JxW(q);
+          // Tamam Stabilization term 0.5 = rho / 2
+          //cell_convection_matrix(i, j) += 0.5 * current_velocity_divergence[q] * scalar_product(fe_values[velocity].value(i, q), fe_values[velocity].value(j, q)) * fe_values.JxW(q);
 
-          // Convective term using u_n grad u_n+1 
-          cell_convection_matrix(i, j) += current_velocity_values[q] *
-                               fe_values[velocity].gradient(j, q) *
-                               fe_values[velocity].value(i, q) *
-                               fe_values.JxW(q);             
-          
-         cell_convection_matrix(i, j) += 0.1 * current_velocity_divergence[q] *
-                               scalar_product(fe_values[velocity].value(i, q),
-                               fe_values[velocity].value(j, q)) * fe_values.JxW(q);                   
-          /*
-          // Convective term using u_n+1 grad u_n 
-           // C                    
-           cell_matrix(i, j) += current_velocity_gradients[q] *
-                               fe_values[velocity].value(j, q) *
-                               fe_values[velocity].value(i, q) *
-                               fe_values.JxW(q);    */                  
         }
+        // Time derivative discretization on the right hand side BDF2
+        cell_rhs(i) +=  scalar_product(current_velocity_values[q], fe_values[velocity].value(i, q)) * fe_values.JxW(q) / deltat;
 
-        // Forcing term.
-        cell_rhs(i) += scalar_product(forcing_term_tensor,
-                                      fe_values[velocity].value(i, q)) *
-                       fe_values.JxW(q);
 
-        // Time derivative discretization on the right hand side
-        cell_rhs(i) += scalar_product(current_velocity_values[q],
-                                      fe_values[velocity].value(i, q)) /
-                       deltat * fe_values.JxW(q);
       }
     }
 
-    // Boundary integral for Neumann BCs.
+    // BackFlow Stabilization on open boundary ( mainly for 3D instabilities in turbolent flows )
     if (cell->at_boundary())
-    {std::vector<double> current_velocity_divergence(n_q);
+    {
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
-        // NO NEUMANN
+        
         if (cell->face(f)->at_boundary() &&
             (false))
         {
           fe_boundary_values.reinit(cell, f);
+          fe_boundary_values[velocity].get_function_values(solution, boundary_velocity_values);
+          fe_boundary_values[velocity].get_function_values(previous_solution, prev_boundary_velocity_values);
 
           for (unsigned int q = 0; q < n_q_boundary; ++q)
           {
-            Vector<double> neumann_loc(dim);
-            function_h.vector_value(fe_boundary_values.quadrature_point(q),
-                                    neumann_loc);
-            Tensor<1, dim> neumann_loc_tensor;
-            for (unsigned int d = 0; d < dim; ++d)
-              neumann_loc_tensor[d] = neumann_loc[d];
-
             for (unsigned int i = 0; i < dofs_per_cell; ++i)
             {
-              cell_rhs(i) +=
-                  scalar_product(neumann_loc_tensor,
-                                 fe_boundary_values[velocity].value(i, q)) *
-                  fe_boundary_values.JxW(q);
+              for (unsigned int j = 0; j < dofs_per_cell; ++j)
+              {
+                  cell_convection_matrix(i, j) -= 1.5 * std::min((2. * boundary_velocity_values[q] - prev_boundary_velocity_values[q] )* fe_boundary_values.normal_vector(q), 0.0) *
+                                                        scalar_product(fe_boundary_values[velocity].value(j, q),fe_boundary_values[velocity].value(i, q)) *
+                                                        fe_boundary_values.JxW(q);;
+              }
             }
           }
         }
@@ -522,155 +500,199 @@ void NavierStokes::assemble_time_step(const double &time)
 
     cell->get_dof_indices(dof_indices);
 
-    
+    if( time == -1)
+    {
+      mass_matrix.add(dof_indices, cell_mass_matrix);
+    }
     convection_matrix.add(dof_indices, cell_convection_matrix);
     system_rhs.add(dof_indices, cell_rhs);
   }
-
-  
+  if( time == -1)
+  {
+    mass_matrix.compress(VectorOperation::add);
+    system_matrix.add(1., mass_matrix);
+  }
   convection_matrix.compress(VectorOperation::add);
   system_rhs.compress(VectorOperation::add);
   pressure_mass.compress(VectorOperation::add);
   system_matrix.add(1., convection_matrix);
 
 
-// Dirichlet boundary conditions.
-{
+  // Dirichlet boundary conditions.
+
+  // Apply Dirichlet boundary conditions.
+  {
     std::map<types::global_dof_index, double> boundary_values;
     std::map<types::boundary_id, const Function<dim> *> boundary_functions;
 
-    // Set inlet velocity at boundary ID `1`
+    // We first impose the Dirichlet boundary conditions on the Inlet.
     inlet_velocity.set_time(time);
-    boundary_functions[1] = &inlet_velocity; // Inlet boundary
+    boundary_functions[0] = &inlet_velocity;
     VectorTools::interpolate_boundary_values(dof_handler,
                                             boundary_functions,
                                             boundary_values,
-                                            ComponentMask({true, true, false}));
+                                            ComponentMask(
+                                                {true, true, false}));
 
-    // Apply no-slip condition to walls and the entire cylinder (IDs 2, 4, 6, 5)
+    // This ensure the two boundaries do not overlap.
     boundary_functions.clear();
+    Functions::ZeroFunction<dim> zero_function(dim + 1);
     
-    boundary_functions[2] = &function_g;  // Top wall (boundary ID 2)
-    
-    boundary_functions[4] = &function_g;  // Bottom wall (boundary ID 4)
-
-    boundary_functions[6] = &function_g;  // Cylinder (upper part, boundary ID 6)
-    boundary_functions[5] = &function_g;  // Cylinder (lower part, boundary ID 5)
-
+    // We then impose the Dirichlet boundary conditions on Walls and the Obstacle.
+    boundary_functions[2] = &zero_function;
+    boundary_functions[3] = &zero_function;
     VectorTools::interpolate_boundary_values(dof_handler,
                                             boundary_functions,
                                             boundary_values,
-                                            ComponentMask({true, true, false}));
+                                            ComponentMask(
+                                                {true, true, false}));
 
-    // Apply boundary values to the system (matrix, rhs, solution)
-    MatrixTools::apply_boundary_values(
-        boundary_values, system_matrix, solution, system_rhs, false);
-
-   
-}
-
+    MatrixTools::apply_boundary_values(boundary_values, system_matrix, solution, system_rhs, false);
+  }
 
 }
 
+// Function used to solve the linear system and assemble the preconditioner
 void NavierStokes::solve_time_step()
 {
   pcout << "===============================================" << std::endl;
 
   const unsigned int maxiter = 100000;
   const double tol = 1e-4 /**system_rhs.l2_norm()*/;
-
   SolverControl solver_control(maxiter, tol, true);
   // solver_control.enable_history_data();
-
   SolverGMRES<TrilinosWrappers::MPI::BlockVector> solver(solver_control);
+  previous_solution = solution;
+  // Assemblying the preconditioner
+  {
 
-  
-  //PreconditionSIMPLE preconditioner; //fastest  but higher GMRES iter on averahe
-  //PreconditionaSIMPLE preconditioner; // too slow to solve the actual system but fast to be assembled
-  PreconditionYosida preconditioner; // little slower but less GMRES iter on average
-
-  pcout << " Assemblying the preconditioner... " << std::endl;
-
-  dealii::Timer timerprec;
-  timerprec.restart();
-
-  
-  //SIMPLE
-  /*
-  preconditioner.initialize(
-      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), solution_owned); 
-  */
-
-  //YOSIDA
-  
- preconditioner.initialize(
-      system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), mass_matrix.block(0,0) ,solution_owned); 
-
-  timerprec.stop();
-  pcout << "Time taken to initialize preconditioner: " << timerprec.wall_time() << " seconds" << std::endl;
-
-  time_prec.push_back(timerprec.wall_time());
-
-  // pcout << "done" << std::endl;
-  pcout << "===============================================" << std::endl;
-
-  pcout << "Solving the linear system with expected maxiter: " << maxiter;
-  pcout << " and tollerance: " << tol << std::endl;
-
-  dealii::Timer timersys;
-  timersys.restart();
-
-  solver.solve(system_matrix, solution_owned, system_rhs, preconditioner);
-
-  timersys.stop();
-  pcout << "Time taken to solve Navier Stokes problem: " << timersys.wall_time() << " seconds" << std::endl;
-
-  time_solve.push_back(timersys.wall_time());
-
-  pcout << "Result:  " << solver_control.last_step() << " GMRES iterations"
-        << std::endl;
+    dealii::Timer timerprec;
+    timerprec.restart();
+    dealii::Timer timersys;
+    
+    unsigned int preconditioner_type = 0;
+    switch (preconditioner_type)
+    {
+        // Yosida
+        case 0:
+        {
+            PreconditionYosida yosida;
+            yosida.initialize(system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), mass_matrix.block(0, 0), solution_owned);  // Yosida
+            timerprec.stop();
+            pcout << "Time taken to initialize preconditioner: " << timerprec.wall_time() << " seconds" << std::endl;
+            time_prec.push_back(timerprec.wall_time());
+            timersys.restart();
+            solver.solve(system_matrix, solution_owned, system_rhs, yosida);
+            timersys.stop();
+            pcout << "Time taken to solve Navier Stokes problem: " << timersys.wall_time() << " seconds" << std::endl;
+            time_solve.push_back(timersys.wall_time());
+            break;
+        }
+    
+        // SIMPLE
+        case 1:
+        {
+            PreconditionSIMPLE simple;
+            simple.initialize(system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), solution_owned);
+            timerprec.stop();
+            pcout << "Time taken to initialize preconditioner: " << timerprec.wall_time() << " seconds" << std::endl;
+            time_prec.push_back(timerprec.wall_time());
+            timersys.restart();
+            solver.solve(system_matrix, solution_owned, system_rhs, simple);
+            timersys.stop();
+            pcout << "Time taken to solve Navier Stokes problem: " << timersys.wall_time() << " seconds" << std::endl;
+            time_solve.push_back(timersys.wall_time());
+            
+            break;
+        }
+    
+        // aYosida
+        case 2:
+        {
+            PreconditionaYosida ayosida;
+            ayosida.initialize(system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), mass_matrix.block(0, 0), solution_owned);  // Yosida
+            timerprec.stop();
+            pcout << "Time taken to initialize preconditioner: " << timerprec.wall_time() << " seconds" << std::endl;
+            time_prec.push_back(timerprec.wall_time());
+            timersys.restart();
+            solver.solve(system_matrix, solution_owned, system_rhs, ayosida);
+            timersys.stop();
+            pcout << "Time taken to solve Navier Stokes problem: " << timersys.wall_time() << " seconds" << std::endl;
+            time_solve.push_back(timersys.wall_time());
+            
+            break;
+        }
+    
+        // aSIMPLE
+        case 3:
+        {
+            PreconditionaSIMPLE asimple;
+            asimple.initialize(system_matrix.block(0, 0), system_matrix.block(1, 0), system_matrix.block(0, 1), solution_owned);
+            timerprec.stop();
+            pcout << "Time taken to initialize preconditioner: " << timerprec.wall_time() << " seconds" << std::endl;
+            time_prec.push_back(timerprec.wall_time());
+            timersys.restart();
+            solver.solve(system_matrix, solution_owned, system_rhs, asimple);
+            timersys.stop();
+            pcout << "Time taken to solve Navier Stokes problem: " << timersys.wall_time() << " seconds" << std::endl;
+            time_solve.push_back(timersys.wall_time());
+            
+            break;
+        }
+    
+        default:
+            throw std::runtime_error("Invalid preconditioner type");
+    }
+  }
+  pcout << "Result:  " << solver_control.last_step() << " GMRES iterations"<< std::endl;
 
   solution = solution_owned;
+
 }
 
+// Function used to save the output of the simulation
 void NavierStokes::output(const unsigned int &time_step) const
 {
-  pcout << "===============================================" << std::endl;
+    pcout << "===============================================" << std::endl;
 
-  DataOut<dim> data_out;
+    DataOut<dim> data_out;
 
-  std::vector<DataComponentInterpretation::DataComponentInterpretation>
-      data_component_interpretation(
-          dim, DataComponentInterpretation::component_is_part_of_vector);
-  data_component_interpretation.push_back(
-      DataComponentInterpretation::component_is_scalar);
-  std::vector<std::string> names = {"velocity",
-                                    "velocity",
-                                    "pressure"};
+    std::vector<DataComponentInterpretation::DataComponentInterpretation>
+        data_component_interpretation(
+            dim, DataComponentInterpretation::component_is_part_of_vector);
+    data_component_interpretation.push_back(
+        DataComponentInterpretation::component_is_scalar);
+    std::vector<std::string> names = {"velocity",
+                                      "velocity",
+                                      "pressure"};
 
-  data_out.add_data_vector(dof_handler,
-                           solution,
-                           names,
-                           data_component_interpretation);
+    data_out.add_data_vector(dof_handler,
+                            solution,
+                            names,
+                            data_component_interpretation);
 
-  std::vector<unsigned int> partition_int(mesh.n_active_cells());
-  GridTools::get_subdomain_association(mesh, partition_int);
-  const Vector<double> partitioning(partition_int.begin(), partition_int.end());
-  data_out.add_data_vector(partitioning, "partitioning");
+    std::vector<unsigned int> partition_int(mesh.n_active_cells());
+    GridTools::get_subdomain_association(mesh, partition_int);
+    const Vector<double> partitioning(partition_int.begin(), partition_int.end());
+    data_out.add_data_vector(partitioning, "partitioning");
 
-  data_out.build_patches();
+    data_out.build_patches();
 
-  const std::string output_file_name = "output- navier-stokes-2D";
-  data_out.write_vtu_with_pvtu_record("./",
-                                      output_file_name,
-                                      time_step,
-                                      MPI_COMM_WORLD);
+    const std::string output_file_name = "output-navier-stokes-2D";
+    data_out.write_vtu_with_pvtu_record("./output2D/",
+                                        output_file_name,
+                                        time_step,
+                                        MPI_COMM_WORLD,
+                                        numbers::invalid_unsigned_int,
+                                        1);
 
-  pcout << "Output written to " << output_file_name << std::endl;
-  pcout << "===============================================" << std::endl;
+    pcout << "Output written to " << output_file_name << std::endl;
+    pcout << "===============================================" << std::endl;    
+
 }
 
-//
+
+// Function used to update time step and call the solver, compute the forces and output the results
 void NavierStokes::solve()
 {
   
@@ -694,11 +716,10 @@ void NavierStokes::solve()
   double time = 0;
   while (time < T - 0.5 * deltat)
   { 
-    forcing_term.set_time(time); //setto il valore della funzione f al tempo corrente
-    function_h.set_time(time); // setto il valore della funzione h al tempo corrente
 
     time += deltat;
     ++time_step;
+    inlet_velocity.set_time(time);
 
     pcout << "n = " << std::setw(3) << time_step << ", t = " << std::setw(5)
           << time << ":" << std::flush;
@@ -711,13 +732,7 @@ void NavierStokes::solve()
     if( time == T - deltat )
         compute_pressure_difference();
     // Since the starting solution t0 is zero we avoid the initial high forces values
-    if ( time > 0.1) //da prove empiriche dovremmo stamparli solo dopo T = 1 per avere valori sensati col benchmark.
-      {
-        coefficients = compute_forces();
-        c_D_max = std::max ( coefficients[0] , c_D_max );
-        c_L_min = std::min ( coefficients[1] , c_L_min );
-      } 
-    output(time_step);
+    if( time_step % 1 == 0) output(time_step);
   }
   pcout << "===============================================" << std::endl;
   pcout << "Drag Coefficient Max ----->   " << c_D_max << std::endl;
@@ -725,8 +740,6 @@ void NavierStokes::solve()
   pcout << "Lift Coefficient Min ----->   " << c_L_min << std::endl;
   pcout << "===============================================" << std::endl;
 }
-  
-
 
 std::vector<double> NavierStokes::compute_forces()
 {
@@ -768,15 +781,14 @@ std::vector<double> NavierStokes::compute_forces()
 
     fe_values.reinit(cell);
 
+
+
     if (cell->at_boundary())
     {
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
       {
         if (cell->face(f)->at_boundary() &&
-            (
-              (cell->face(f)->boundary_id() == 5 ) || (cell->face(f)->boundary_id() == 6 ) //Cylnder
-            )
-          )
+            (cell->face(f)->boundary_id() == 3 ))
         {
           fe_face_values.reinit(cell, f);
 
@@ -789,9 +801,11 @@ std::vector<double> NavierStokes::compute_forces()
             const double nx = n[0];
             const double ny = n[1];
 
+            // Construct the tensor
             Tensor<1, dim> tangent;
             tangent[0] = ny;
-            tangent[1] = -nx;
+            tangent[1] =-nx;
+						tangent[2] = 0.;
 
             local_drag += (rho * nu * n * current_velocity_gradients[q] * 
                         ( tangent / tangent.norm_square() )
@@ -816,8 +830,8 @@ std::vector<double> NavierStokes::compute_forces()
   drag = Utilities::MPI::sum(local_drag, MPI_COMM_WORLD);
   lift = Utilities::MPI::sum(local_lift, MPI_COMM_WORLD);
   pcout << "Drag :\t " << drag << " Lift :\t " << lift << std::endl;
-  // The meam velocity is defined as 2U(0,H/2,t)/3
-  // This is in the case 2D
+  // The meam velocity is defined as 4U(0,H/2,H/2,t)/9
+  // This is in the case 3D-2 unsteady
   const double mean_v = inlet_velocity.getMeanVelocity();
 	const double D= 0.1;
 	const double H=0.41;
@@ -834,8 +848,8 @@ std::vector<double> NavierStokes::compute_forces()
 
 void NavierStokes::compute_pressure_difference()
 {
-  Point<dim> p_a = { 0.45, 0.2 };
-  Point<dim> p_e = { 0.55, 0.2 };
+  Point<dim> p_a = { 0.45, 0.2 , 0.205 };
+  Point<dim> p_e = { 0.55, 0.2 , 0.205 };
 
   Vector<double> solution_values1(dim + 1);
   Vector<double> solution_values2(dim + 1);
@@ -907,7 +921,6 @@ void NavierStokes::compute_pressure_difference()
     // Ensure all processes have completed the reductions
     MPI_Barrier(MPI_COMM_WORLD);
 }
-
 
 
 
