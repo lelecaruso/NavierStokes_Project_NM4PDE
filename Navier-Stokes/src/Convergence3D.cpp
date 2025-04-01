@@ -267,24 +267,13 @@ void NavierStokes::assemble(const double &time)
               fe_values.JxW(q);
 
           // Time derivative discretization.
-          cell_mass_matrix(i, j) += fe_values[velocity].value(i, q) *
-                               fe_values[velocity].value(j, q) /
-                               deltat * fe_values.JxW(q);
+          cell_mass_matrix(i, j) += scalar_product(fe_values[velocity].value(i, q),
+                                        fe_values[velocity].value(j, q) /
+                                        deltat) * fe_values.JxW(q);
 
-          // Convective term using u_n grad u_n+1 
-         
-          cell_convection_matrix(i, j) += current_velocity_values[q] *
-                               fe_values[velocity].gradient(j, q) *
-                               fe_values[velocity].value(i, q) *
-                               fe_values.JxW(q);                             
-          /*
-          // Convective term using u_n+1 grad u_n 
-           // C                    
-           cell_matrix(i, j) += current_velocity_gradients[q] *
-                               fe_values[velocity].value(j, q) *
-                               fe_values[velocity].value(i, q) *
-                               fe_values.JxW(q);    */                  
-
+          // Convective term using u_n grad u_n+1
+          cell_convection_matrix(i, j) += scalar_product(fe_values[velocity].gradient(j, q) * current_velocity_values[q], fe_values[velocity].value(i, q)) 
+                                          * fe_values.JxW(q);
           // Pressure term in the momentum equation.
           cell_matrix(i, j) -= fe_values[velocity].divergence(i, q) *
                                fe_values[pressure].value(j, q) *
@@ -468,21 +457,10 @@ void NavierStokes::assemble_time_step(const double &time)
       for (unsigned int i = 0; i < dofs_per_cell; ++i)
       {
         for (unsigned int j = 0; j < dofs_per_cell; ++j)
-        {
-
+          {
           // Convective term using u_n grad u_n+1 
-          cell_convection_matrix(i, j) += current_velocity_values[q] *
-                               fe_values[velocity].gradient(j, q) *
-                               fe_values[velocity].value(i, q) *
-                               fe_values.JxW(q);                             
-          /*
-          // Convective term using u_n+1 grad u_n 
-           // C                    
-           cell_matrix(i, j) += current_velocity_gradients[q] *
-                               fe_values[velocity].value(j, q) *
-                               fe_values[velocity].value(i, q) *
-                               fe_values.JxW(q);    */                  
-        }
+          cell_convection_matrix(i, j) += scalar_product(fe_values[velocity].gradient(j, q) * current_velocity_values[q], fe_values[velocity].value(i, q)) * fe_values.JxW(q);                             
+         }
 
         // Forcing term.
         cell_rhs(i) += scalar_product(forcing_term_tensor,
