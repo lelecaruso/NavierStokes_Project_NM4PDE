@@ -527,7 +527,7 @@ void NavierStokes::assemble_time_step(const double &time)
 }
 
 // Function used to solve the linear system and assemble the preconditioner
-void NavierStokes::solve_time_step()
+void NavierStokes::solve_time_step(double time)
 {
   pcout << "===============================================" << std::endl;
 
@@ -544,7 +544,7 @@ void NavierStokes::solve_time_step()
     timerprec.restart();
     dealii::Timer timersys;
     
-    unsigned int preconditioner_type = 0;
+    unsigned int preconditioner_type = 3;
     switch (preconditioner_type)
     {
         // Yosida
@@ -619,7 +619,21 @@ void NavierStokes::solve_time_step()
     }
   }
   pcout << "Result:  " << solver_control.last_step() << " GMRES iterations"<< std::endl;
-
+  int Re = std::floor(0.1 * 1.5 * std::sin(time*M_PI/8.0) / .001);
+      // Write coefficients to "coeff.csv"
+    if (mpi_rank == 0) // Ensure only the root process writes to the file
+    {
+        std::ofstream coeff_file("gmres.csv", std::ios::app); // Open in append mode
+        if (coeff_file.is_open())
+        {
+            coeff_file << time << ',' << Re << ',' << solver_control.last_step() << "\n";
+            coeff_file.close();
+        }
+        else
+        {
+            pcout << "Error: Unable to open coeff.csv for writing." << std::endl;
+        }
+    }
   solution = solution_owned;
 
 }
@@ -653,7 +667,7 @@ void NavierStokes::output(const unsigned int &time_step, std::vector<double> coe
     data_out.build_patches();
 
     const std::string output_file_name = "output-navier-stokes-2D";
-    data_out.write_vtu_with_pvtu_record("./output2D/",
+    data_out.write_vtu_with_pvtu_record("./output2D_1/",
                                         output_file_name,
                                         time_step,
                                         MPI_COMM_WORLD,
@@ -665,7 +679,7 @@ void NavierStokes::output(const unsigned int &time_step, std::vector<double> coe
     // Write coefficients to "coeff.csv"
     if (mpi_rank == 0) // Ensure only the root process writes to the file
     {
-        std::ofstream coeff_file("coeff.csv", std::ios::app); // Open in append mode
+        std::ofstream coeff_file("coeff_2.csv", std::ios::app); // Open in append mode
         if (coeff_file.is_open())
         {
             coeff_file << time_step << "," << coeff[0] << "," << coeff[1] << "\n";
@@ -717,7 +731,7 @@ void NavierStokes::solve()
     if( time == deltat ) assemble(time);
     else assemble_time_step(time);
 
-    solve_time_step();
+    solve_time_step(time);
     if( time == T - deltat )
         compute_pressure_difference();
     {
@@ -740,98 +754,103 @@ std::vector<double> NavierStokes::compute_forces()
   pcout << "===============================================" << std::endl;
   pcout << "Computing forces: " << std::endl;
 
+   // Define quadrature for faces
+   QGauss<dim - 1> face_quadrature_formula(3);
+   const unsigned int n_q_points = face_quadrature_formula.size();
 
-  FEValues<dim> fe_values(*fe,
-                          *quadrature,
-                          update_values | update_gradients |
-                              update_quadrature_points | update_JxW_values);
-  FEFaceValues<dim> fe_face_values(*fe,
-                                       *quadrature_boundary,
-                                       update_values | update_quadrature_points |
-                                          update_gradients |
-                                           update_normal_vectors | 
-                                           update_JxW_values);
+   // Define FE extractors for velocity and pressure
+   FEValuesExtractors::Vector velocities(0);
+   FEValuesExtractors::Scalar pressure(dim);
 
-  const unsigned int n_q = quadrature->size();
-  const unsigned int n_q_face = quadrature_boundary->size();                                     
+   // Containers to store evaluated values
+   std::vector<double>         pressure_values(n_q_points);
+   std::vector<Tensor<2, dim>> velocity_gradients(n_q_points);
 
-  FEValuesExtractors::Vector velocity(0);
-  FEValuesExtractors::Scalar pressure(dim);
+   // Initialize FE face values
+   FEFaceValues<dim> fe_face_values(*this->fe,
+                                    face_quadrature_formula,
+                                    update_values | update_quadrature_points |
+                                    update_gradients | update_JxW_values |
+                                    update_normal_vectors);
 
-  std::vector<Tensor<1, dim>> current_velocity_values(n_q);
-  std::vector<double> current_pressure_values(n_q_face);
-  std::vector<Tensor<2, dim>> current_velocity_gradients(n_q_face);
+   // Initialize tensors for calculations
+   Tensor<1, dim> normal_vector;
+   Tensor<2, dim> fluid_stress;
+   Tensor<2, dim> fluid_pressure;
+   Tensor<1, dim> forces;
 
-	double drag=0.;
-	double lift=0.;
+   // Initialize drag and lift accumulators
+   double local_drag = 0.0;
+   double local_lift = 0.0;
 
-  double local_lift = 0.0;
-  double local_drag = 0.0;
+   // Iterate over all cells
+   for (const auto &cell : this->dof_handler.active_cell_iterators())
+   {
+       if (!cell->is_locally_owned())
+           continue;
+           
+       if (!cell->at_boundary())
+           continue;
 
-  for (const auto &cell : dof_handler.active_cell_iterators())
-  {
-    if (!cell->is_locally_owned())
-      continue;
+       for (unsigned int f = 0; f < cell->n_faces(); ++f)
+       {
+           if (!cell->face(f)->at_boundary())
+               continue;
 
-    fe_values.reinit(cell);
+           unsigned int boundary_id = cell->face(f)->boundary_id();
+           bool is_stress_boundary = false;
 
+           // Determine if current face is where stress should be evaluated           
+           if (boundary_id == 3) // Obstacle 
+               is_stress_boundary = true;
 
+           if (!is_stress_boundary)
+               continue;
 
-    if (cell->at_boundary())
-    {
-      for (unsigned int f = 0; f < cell->n_faces(); ++f)
-      {
-        if (cell->face(f)->at_boundary() &&
-            (cell->face(f)->boundary_id() == 3 ))
-        {
-          fe_face_values.reinit(cell, f);
+           // Reinitialize FE face values for the current face
+           fe_face_values.reinit(cell, f);
 
-          fe_face_values[pressure].get_function_values(solution, current_pressure_values);
-          fe_face_values[velocity].get_function_gradients(solution, current_velocity_gradients);
-          for (unsigned int q = 0; q < n_q_face; ++q)
-          {
-            // Get the values
-            Tensor<1, dim> n = -fe_face_values.normal_vector(q);
-            const double nx = n[0];
-            const double ny = n[1];
+           // Retrieve velocity gradients and pressure values on the face
+           fe_face_values[velocities].get_function_gradients(this->solution, velocity_gradients);
+           fe_face_values[pressure].get_function_values(this->solution, pressure_values);
 
-            // Construct the tensor
-            Tensor<1, dim> tangent;
-            tangent[0] = ny;
-            tangent[1] =-nx;
-						tangent[2] = 0.;
+           // Iterate over quadrature points on the face
+           for (unsigned int q = 0; q < n_q_points; ++q)
+           {
+               // Get the normal vector
+               normal_vector = -fe_face_values.normal_vector(q);
 
-            local_drag += (rho * nu * n * current_velocity_gradients[q] * 
-                        ( tangent / tangent.norm_square() )
-                        * ny 
-                        -
-                        current_pressure_values[q] * nx
-                        )
-                        *fe_face_values.JxW(q);
+               // Compute fluid pressure tensor (p * I)
+               fluid_pressure = 0;
+               for (unsigned int d = 0; d < dim; ++d)
+                   fluid_pressure[d][d] = pressure_values[q];
 
-            local_lift -= (rho * nu * n * current_velocity_gradients[q] * 
-                          ( tangent / tangent.norm_square() )
-                          * nx 
-                          +
-                          current_pressure_values[q] * ny
-                          )
-                          *fe_face_values.JxW(q);
-          }
-        }
-      }
-    }
-  }
-  drag = Utilities::MPI::sum(local_drag, MPI_COMM_WORLD);
-  lift = Utilities::MPI::sum(local_lift, MPI_COMM_WORLD);
-  pcout << "Drag :\t " << drag << " Lift :\t " << lift << std::endl;
-  // The meam velocity is defined as 4U(0,H/2,H/2,t)/9
-  // This is in the case 3D-2 unsteady
+               // Compute fluid stress tensor (nu * grad(U) - pI)
+               fluid_stress = this->nu * velocity_gradients[q] - fluid_pressure;
+
+               // Compute forces: stress tensor contracted with normal vector and scaled by JxW
+               forces = fluid_stress * normal_vector * fe_face_values.JxW(q);
+
+               // Accumulate drag and lift using the scaling factor
+               local_drag += forces[0];
+               local_lift += forces[1];
+           }
+       }
+   }
+
+  
+   // Reduce lift and drag across all processes to rank 0
+   double total_lift = 0.0;
+   double total_drag = 0.0;
+
+   MPI_Reduce(&local_lift, &total_lift, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+   MPI_Reduce(&local_drag, &total_drag, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
   const double mean_v = inlet_velocity.getMeanVelocity();
 	const double D= 0.1;
 	const double H=0.41;
 
-	const double c_d=(2.*drag)/(rho*mean_v*mean_v*D*H);
-	const double c_l=(2.*lift)/(rho*mean_v*mean_v*D*H);
+	const double c_d=(2.*total_drag)/(mean_v*mean_v*D);
+	const double c_l=(2.*total_lift)/(mean_v*mean_v*D);
   std::vector<double> coefficients = { c_d , c_l };
 	pcout << "Coeff:\t " << c_d << " Coeff:\t " << c_l << std::endl;
 

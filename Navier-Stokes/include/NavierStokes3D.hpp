@@ -77,7 +77,7 @@ public:
   protected:
     int test_case;
     double H = 0.41;
-    double u_m = 2.25;
+    double u_m = 9.0;
   };
 
 

@@ -406,6 +406,8 @@ protected:
   // System solution (including ghost elements).
   TrilinosWrappers::MPI::BlockVector solution;
 
+
+  TrilinosWrappers::MPI::BlockVector previous_solution;
 };
 
 #endif

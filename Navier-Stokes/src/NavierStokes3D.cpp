@@ -253,9 +253,6 @@ void NavierStokes::assemble(const double &time)
           
           // Temam Stabilization term
           cell_convection_matrix(i, j) += 0.5 * current_velocity_divergence[q] * scalar_product(fe_values[velocity].value(i, q), fe_values[velocity].value(j, q)) * fe_values.JxW(q);             
-          
-          /*// Convective term using u_n+1 grad u_n                 
-          cell_convection_matrix(i, j) += current_velocity_gradients[q] *fe_values[velocity].value(j, q) *fe_values[velocity].value(i, q) *fe_values.JxW(q);    */                  
 
           // Pressure term in the momentum equation.
           cell_matrix(i, j) -= fe_values[pressure].value(j, q) * fe_values[velocity].divergence(i, q) * fe_values.JxW(q);
@@ -673,7 +670,7 @@ void NavierStokes::output(const unsigned int &time_step) const
 
     // Only Save one .vtu file, if you want to have one for each processor change last parameter to 0
     const std::string output_file_name = "output-navier-stokes-3D";
-    data_out.write_vtu_with_pvtu_record("./output3D/",
+    data_out.write_vtu_with_pvtu_record("./outputConvergence/",
                                         output_file_name,
                                         time_step,
                                         MPI_COMM_WORLD,
@@ -734,7 +731,7 @@ void NavierStokes::solve()
         c_D_max = std::max ( coefficients[0] , c_D_max );
         c_L_min = std::min ( coefficients[1] , c_L_min );
       } 
-    if( time_step % 50 == 0) output(time_step);
+    if( time_step % 20 == 0) output(time_step);
   }
   pcout << "===============================================" << std::endl;
   pcout << "Drag Coefficient Max ----->   " << c_D_max << std::endl;

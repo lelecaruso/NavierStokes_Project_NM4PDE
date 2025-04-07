@@ -30,10 +30,10 @@ public:
         case 1:
           values[0] = 0.0;  
           break;
-        case 3:
+        case 2:
           values[0] = 4.0 * u_m * p[1] * (H - p[1]) * std::sin(M_PI * get_time() / 8.0 ) / (H*H);
           break;
-        case 2:
+        case 3:
         default:
           values[0] = 4.0 * u_m * p[1] * (H - p[1])/ (H*H);
           break;
@@ -50,9 +50,9 @@ public:
         switch(this->test_case) {
           case 1:
             return 0.0; 
-          case 3:
-            return 4.0 * u_m * p[1] * (H - p[1]) * std::sin(M_PI * get_time() / 8.0 ) / (H*H);
           case 2:
+            return 4.0 * u_m * p[1] * (H - p[1]) * std::sin(M_PI * get_time() / 8.0 ) / (H*H);
+          case 3:
           default:
             return 4.0 * u_m * p[1] * (H - p[1]) / (H*H);
         }
@@ -128,7 +128,7 @@ protected:
 
   // Solve the problem for one time step.
   void
-  solve_time_step();
+  solve_time_step(double time);
 
   // Output results.
   void
