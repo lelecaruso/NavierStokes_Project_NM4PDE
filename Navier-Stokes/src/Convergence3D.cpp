@@ -270,7 +270,7 @@ void NavierStokes::assemble(const double &time)
           cell_stiffness_matrix(i, j) += nu * scalar_product(fe_values[velocity].gradient(i, q), fe_values[velocity].gradient(j, q)) * fe_values.JxW(q);
 
           // Time derivative discretization.
-<<<<<<< HEAD
+
           cell_mass_matrix(i, j) +=  scalar_product(fe_values[velocity].value(i, q), fe_values[velocity].value(j, q)) / deltat * fe_values.JxW(q);
 
           // Convective term 
@@ -278,11 +278,7 @@ void NavierStokes::assemble(const double &time)
           
           // Temam Stabilization term
           cell_convection_matrix(i, j) += 0.5 * current_velocity_divergence[q] * scalar_product(fe_values[velocity].value(i, q), fe_values[velocity].value(j, q)) * fe_values.JxW(q);             
-=======
-          cell_mass_matrix(i, j) += scalar_product(fe_values[velocity].value(i, q),
-                                        fe_values[velocity].value(j, q) /
-                                        deltat) * fe_values.JxW(q);
->>>>>>> a396ee8c5eb8d8686c10f30135c54d63d14a2a08
+
 
           // Convective term using u_n grad u_n+1
           cell_convection_matrix(i, j) += scalar_product(fe_values[velocity].gradient(j, q) * current_velocity_values[q], fe_values[velocity].value(i, q)) 
@@ -477,7 +473,7 @@ void NavierStokes::assemble_time_step(const double &time)
       for (unsigned int i = 0; i < dofs_per_cell; ++i)
       {
         for (unsigned int j = 0; j < dofs_per_cell; ++j)
-<<<<<<< HEAD
+
         {
           if ( time == -1)
           {
@@ -493,12 +489,6 @@ void NavierStokes::assemble_time_step(const double &time)
         }
         // Time derivative discretization on the right hand side BDF2
         cell_rhs(i) +=  scalar_product(current_velocity_values[q], fe_values[velocity].value(i, q)) * fe_values.JxW(q) / deltat;
-=======
-          {
-          // Convective term using u_n grad u_n+1 
-          cell_convection_matrix(i, j) += scalar_product(fe_values[velocity].gradient(j, q) * current_velocity_values[q], fe_values[velocity].value(i, q)) * fe_values.JxW(q);                             
-         }
->>>>>>> a396ee8c5eb8d8686c10f30135c54d63d14a2a08
 
 
       }
@@ -779,13 +769,18 @@ NavierStokes::compute_error(const VectorTools::NormType &norm_type)
   exact_solution.set_time(static_cast<double>(T));//calculate error at the last step
 
   Vector<double> error_per_cell;
+
+  // Maschera: seleziona solo le prime 3 componenti (velocità)
+  ComponentSelectFunction<dim> velocity_mask(std::make_pair(0U, 3U), 4U);  
+
   VectorTools::integrate_difference(mapping,
                                     dof_handler,
                                     solution,
                                     exact_solution,
                                     error_per_cell,
                                     quadrature_error,
-                                    norm_type);
+                                    norm_type,
+                                    &velocity_mask);
 
   const double error =
     VectorTools::compute_global_error(mesh, error_per_cell, norm_type);

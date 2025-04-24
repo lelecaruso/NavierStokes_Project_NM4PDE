@@ -130,6 +130,46 @@ public:
       const double a = M_PI / 4.0;
       const double b = M_PI / 2.0; 
 
+          // Gradient evaluation.
+    virtual Tensor<2, dim>
+    gradient_tensor(const Point<dim> &p,
+             const unsigned int /*component*/ = 0) const
+      {
+      Tensor<2, dim> values;
+
+      values[0][0] = -a * std::exp( -nu * b * b * get_time() ) * ( a * std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) - a * std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) );
+      values[0][1] = -a * std::exp( -nu * b * b * get_time() ) * ( a * std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) - b * std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) );
+      values[0][2] = -a * std::exp( -nu * b * b * get_time() ) * ( b * std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) + a * std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) );
+        
+      values[1][0] = -a * std::exp( -nu * b * b * get_time() ) * ( b * std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]) + a * std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) );
+      values[1][1] = -a * std::exp( -nu * b * b * get_time() ) * ( a * std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) - a * std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) );
+      values[1][2] = -a * std::exp( -nu * b * b * get_time() ) * ( a * std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]) - b * std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) );
+       
+      values[2][0] = -a * std::exp( -nu * b * b * get_time() ) * ( a * std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) - b * std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) );
+      values[2][1] = -a * std::exp( -nu * b * b * get_time() ) * ( b * std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) + a * std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]) );
+      values[2][2] = -a * std::exp( -nu * b * b * get_time() ) * ( a * std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) - a * std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) );
+        
+      values[3][0] = 0.0;
+      values[3][1] = 0.0;
+      values[3][2] = 0.0;    
+
+      return values;
+      }
+
+    virtual Tensor<1, dim>
+     gradient(const Point<dim> &p, const unsigned int component = 0) const override
+      {
+      
+      Tensor<2, dim> grad_tensor = gradient_tensor(p);
+      Tensor<1, dim> grad_component;
+
+      for (unsigned int i = 0; i < dim; ++i)
+        grad_component[i] = grad_tensor[component][i];
+
+    return grad_component;
+    }
+
+
     };
 
 // Neumann boundary conditions.
