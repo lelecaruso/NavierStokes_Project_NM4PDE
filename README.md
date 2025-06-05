@@ -25,3 +25,4 @@ To compile and run the project these are the steps that need to be followed:
 
 Output are saved in the _/build/output_ directory
 
+![ES](Navier-Stokes/img/ethiersteinmann.png)
