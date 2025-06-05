@@ -416,6 +416,8 @@ void NavierStokes::assemble_time_step(const double &time)
 
   // We delete the previous Convection Matrix from the system matrix 
   system_matrix.add(-1., convection_matrix);
+
+  // Reinitialize the matrix if we want to use bdf2
   if( time == -1)
   {
     system_matrix.add(-1., mass_matrix);
@@ -475,6 +477,7 @@ void NavierStokes::assemble_time_step(const double &time)
         for (unsigned int j = 0; j < dofs_per_cell; ++j)
 
         {
+          // BDF2
           if ( time == -1)
           {
             cell_mass_matrix(i,j) +=  .5 * fe_values[velocity].value(i, q) *
@@ -527,6 +530,7 @@ void NavierStokes::assemble_time_step(const double &time)
 
     cell->get_dof_indices(dof_indices);
 
+    // BDF2
     if( time == -1)
     {
       mass_matrix.add(dof_indices, cell_mass_matrix);
@@ -534,6 +538,7 @@ void NavierStokes::assemble_time_step(const double &time)
     convection_matrix.add(dof_indices, cell_convection_matrix);
     system_rhs.add(dof_indices, cell_rhs);
   }
+  //BDF2
   if( time == -1)
   {
     mass_matrix.compress(VectorOperation::add);

@@ -7,7 +7,7 @@
 
 using namespace dealii;
 
-// Class implementing a solver for the Stokes problem.
+// Class implementing a solver for the NS problem.
 class NavierStokes
 {
 public:
@@ -46,30 +46,6 @@ public:
     const double g = 0.0;
   };
 
-  // Homog. Dirichlet boundary conditions.
-  class FunctionG : public Function<dim>
-  {
-  public:
-    // Constructor.
-    FunctionG() : Function<dim>(dim + 1)
-    {
-    }
-
-    virtual void
-    vector_value(const Point<dim> & /*p*/, Vector<double> &values) const override
-    {
-      values[0] = 0.;
-      values[1] = 0.;
-      values[2] = 0.;
-      values[3] = 0.;
-    }
-
-    virtual double
-    value(const Point<dim> & /*p*/, const unsigned int /*component*/) const override
-    {
-      return 0.;
-    }
-  };
 
     //Exact sol
     class ExactSolution : public Function<dim>
@@ -93,7 +69,6 @@ public:
         values[0] = -a * std::exp( -nu * b * b * get_time() ) * ( std::exp(a * p[0]) * std::sin(a * p[1] + b * p[2]) + std::exp(a * p[2]) * std::cos(a * p[0] + b * p[1]) );
         values[1] = -a * std::exp( -nu * b * b * get_time() ) * ( std::exp(a * p[1]) * std::sin(a * p[2] + b * p[0]) + std::exp(a * p[0]) * std::cos(a * p[1] + b * p[2]) );
         values[2] = -a * std::exp( -nu * b * b * get_time() ) * ( std::exp(a * p[2]) * std::sin(a * p[0] + b * p[1]) + std::exp(a * p[1]) * std::cos(a * p[2] + b * p[0]) );
-        // values[3] = 0;
         values[3] = pressure;
       }
       virtual double
@@ -184,9 +159,6 @@ public:
   virtual void
   vector_value(const Point<dim> & p, Vector<double> &values) const override
   {
-    //vettore normale al piano y = - 1 è n = (0,1,0)
-    //p[1] = -1; //y=-1
-
     //expression of H 
     //H=ν∂u/∂n​−pn =  ν∂u/∂n - (0,p(x,-1,z),0)
       double factor = -(a * a * std::exp(-2 * nu * b * b * get_time())) / 2.0;
@@ -384,8 +356,6 @@ protected:
   ExactSolution exact_solution;
 
 
-  // g(x).
-  FunctionG function_g;
 
   // h(x).
   FunctionH function_h;

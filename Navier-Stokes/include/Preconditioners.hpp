@@ -115,11 +115,6 @@ using namespace dealii;
     //      [ I    D^-1*B^T ] [ dst_u ] = [ sol1_u ]
     //      [ 0      alpha  ] [ dst_p ]   [ sol1_p ]
     //
-    // Parameters:
-    // - dst: The block vector where the preconditioned result is stored.
-    // - src: The input block vector to which the preconditioner is applied.
-
-
   class PreconditionSIMPLE 
   {
   public:

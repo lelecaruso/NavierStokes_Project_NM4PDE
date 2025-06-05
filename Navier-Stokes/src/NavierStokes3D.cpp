@@ -386,6 +386,7 @@ void NavierStokes::assemble_time_step(const double &time)
 
   // We delete the previous Convection Matrix from the system matrix 
   system_matrix.add(-1., convection_matrix);
+  // for bdf2
   if( time == -1)
   {
     system_matrix.add(-1., mass_matrix);
@@ -444,6 +445,7 @@ void NavierStokes::assemble_time_step(const double &time)
       {
         for (unsigned int j = 0; j < dofs_per_cell; ++j)
         {
+          // for bdf2
           if ( time == -1)
           {
             cell_mass_matrix(i,j) +=  .5 * fe_values[velocity].value(i, q) *
@@ -452,9 +454,6 @@ void NavierStokes::assemble_time_step(const double &time)
           }
           // Convective term 
           cell_convection_matrix(i, j) += scalar_product(fe_values[velocity].gradient(j, q) * current_velocity_values[q], fe_values[velocity].value(i, q)) * fe_values.JxW(q);
-          // Tamam Stabilization term 0.5 = rho / 2
-          cell_convection_matrix(i, j) += 0.5 * current_velocity_divergence[q] * scalar_product(fe_values[velocity].value(i, q), fe_values[velocity].value(j, q)) * fe_values.JxW(q);
-
         }
         // Time derivative discretization on the right hand side BDF2
         cell_rhs(i) +=  scalar_product(current_velocity_values[q], fe_values[velocity].value(i, q)) * fe_values.JxW(q) / deltat;
@@ -463,7 +462,7 @@ void NavierStokes::assemble_time_step(const double &time)
       }
     }
 
-    // BackFlow Stabilization on open boundary ( mainly for 3D instabilities in turbolent flows )
+    // BackFlow Stabilization on open boundary ( only for 3D instabilities for high Re and coarse meshes )
     if (cell->at_boundary())
     {
       for (unsigned int f = 0; f < cell->n_faces(); ++f)
@@ -493,7 +492,7 @@ void NavierStokes::assemble_time_step(const double &time)
     }
 
     cell->get_dof_indices(dof_indices);
-
+    // for bdf2 
     if( time == -1)
     {
       mass_matrix.add(dof_indices, cell_mass_matrix);
@@ -501,6 +500,7 @@ void NavierStokes::assemble_time_step(const double &time)
     convection_matrix.add(dof_indices, cell_convection_matrix);
     system_rhs.add(dof_indices, cell_rhs);
   }
+  // for bdf2
   if( time == -1)
   {
     mass_matrix.compress(VectorOperation::add);
@@ -678,6 +678,21 @@ void NavierStokes::output(const unsigned int &time_step) const
                                         1);
 
     pcout << "Output written to " << output_file_name << std::endl;
+        // Write coefficients to "coeff.csv"
+    if (mpi_rank == 0) // Ensure only the root process writes to the file
+    {
+        std::ofstream coeff_file("coeff_50.csv", std::ios::app); // Open in append mode
+        if (coeff_file.is_open())
+        {
+            coeff_file << time_step << "," << coeff[0] << "," << coeff[1] << "\n";
+            coeff_file.close();
+        }
+        else
+        {
+            pcout << "Error: Unable to open coeff.csv for writing." << std::endl;
+        }
+    }
+
     pcout << "===============================================" << std::endl;    
 
 }
