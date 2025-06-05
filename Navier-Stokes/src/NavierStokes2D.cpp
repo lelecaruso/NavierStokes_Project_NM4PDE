@@ -619,7 +619,7 @@ void NavierStokes::solve_time_step(double time)
     }
   }
   pcout << "Result:  " << solver_control.last_step() << " GMRES iterations"<< std::endl;
-  int Re = std::floor(0.1 * 1.5 * std::sin(time*M_PI/8.0) / .001);
+  int Re = int(0.1 * 1.5 * std::sin(time*M_PI/8.0) / .001);
       // Write coefficients to "coeff.csv"
     if (mpi_rank == 0) // Ensure only the root process writes to the file
     {
@@ -847,7 +847,7 @@ std::vector<double> NavierStokes::compute_forces()
    MPI_Reduce(&local_drag, &total_drag, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
   const double mean_v = inlet_velocity.getMeanVelocity();
 	const double D= 0.1;
-	const double H=0.41;
+	
 
 	const double c_d=(2.*total_drag)/(mean_v*mean_v*D);
 	const double c_l=(2.*total_lift)/(mean_v*mean_v*D);

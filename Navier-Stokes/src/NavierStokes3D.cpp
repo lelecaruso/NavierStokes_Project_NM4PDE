@@ -678,21 +678,6 @@ void NavierStokes::output(const unsigned int &time_step) const
                                         1);
 
     pcout << "Output written to " << output_file_name << std::endl;
-        // Write coefficients to "coeff.csv"
-    if (mpi_rank == 0) // Ensure only the root process writes to the file
-    {
-        std::ofstream coeff_file("coeff_50.csv", std::ios::app); // Open in append mode
-        if (coeff_file.is_open())
-        {
-            coeff_file << time_step << "," << coeff[0] << "," << coeff[1] << "\n";
-            coeff_file.close();
-        }
-        else
-        {
-            pcout << "Error: Unable to open coeff.csv for writing." << std::endl;
-        }
-    }
-
     pcout << "===============================================" << std::endl;    
 
 }

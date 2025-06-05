@@ -1,6 +1,8 @@
 # UNSTEADY-INCOMPRESSIBLE-NAVIER-STOKES in 2D and 3D
 This project aims to solve the unsteady, incompressible Navier-Stokes equations using the finite element method. The focus is on simulating the benchmark problem "**Flow past a Cylinder**" in two and three dimensions.
 
+![2D](Navier-Stokes/img/2Dvel.png)
+
 ## Strong formulation
 $$ \begin{cases} 
 \frac{\partial \mathbf{u}}{\partial t} + (\mathbf{u} \cdot \nabla) \mathbf{u} - \nu \Delta \mathbf{u} + \nabla p = \mathbf{f} & \text{in } \Omega \, \\ 
@@ -23,21 +25,3 @@ To compile and run the project these are the steps that need to be followed:
 
 Output are saved in the _/build/output_ directory
 
-### IMPORTANT COMANDS TO WORK ON THE CLUSTER
-After building the code we can submit a job using
-`sbatch run3D.sh` --- _specific for 3D test_
-+ List of running jobs: <br>
-`squeue -u <username>`
-+ Stop a specific job (you can retrieve the id by listing the jobs first):<br>
-`scancel <job_id>`
-+ Follow in real-time the output:<br>
-`tail -f myJob.out`
-+ Visualize all the output file (non real-time):<br>
-`cat myJob.out`
-
-### MODIFY NUM OF THREADS
-If you want to modify the number of nodes and tasks per node open the script <br>
-`nano run3D.sh` <br>
-and modify *ONLY* these two lines: <br>
-`#SBATCH --nodes=2           # number of nodes` <br>
-`#SBATCH --ntasks-per-node=32 # number of tasks per node` 
